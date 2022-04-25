@@ -29,7 +29,7 @@
     "test": "env TS_NODE_PROJECT=\"tsconfig.cjs.json\" mocha --exit -r ts-node/register ./test/**/*.spec.ts",
     "test:watch": "env TS_NODE_PROJECT=\"tsconfig.cjs.json\" mocha --timeout 3000 --exit -r ts-node/register --watch --watch-files . ./test/**/*.spec.ts",
     "watch": "tsc -p tsconfig.json --watch",
-    "lint": "eslint -c '../../.eslintrc' --fix './src/**/*.ts'"
+    "lint": "eslint -c '.eslintrc' --fix './src/**/*.ts'"
   },
   "dependencies": {
     "@walletconnect/client": "^2.0.0-beta.23",
@@ -40,6 +40,7 @@
     "@walletconnect/signer-connection": "^2.0.0-beta.23",
     "@walletconnect/types": "^2.0.0-beta.23",
     "@walletconnect/utils": "^2.0.0-beta.23",
+    "alephium-web3": "^0.3.2",
     "eventemitter3": "^4.0.7"
   },
   "devDependencies": {

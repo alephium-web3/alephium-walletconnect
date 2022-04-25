@@ -39,7 +39,6 @@ jobs:
           registry-url: 'https://registry.npmjs.org'
       - name: Build and publish package
         run: |
-          cd packages/alephium-provider/
           npm ci
           npm run build
           npm pack

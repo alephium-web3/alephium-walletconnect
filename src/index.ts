@@ -1,64 +1,115 @@
-import EventEmitter from "eventemitter3";
+import { EventEmitter } from "eventemitter3";
 import { JsonRpcProvider } from "@walletconnect/jsonrpc-provider";
 import { RequestArguments } from "@walletconnect/jsonrpc-utils";
+import { HttpConnection } from "@walletconnect/jsonrpc-http-connection";
 import { SessionTypes } from "@walletconnect/types";
 import {
   SignerConnection,
   SIGNER_EVENTS,
   SignerConnectionClientOpts,
 } from "@walletconnect/signer-connection";
+import { node } from "alephium-web3";
 
 export const signerMethods = [
-  "alephium_getServices",
-  "alephium_signAndSubmitTx"
+  "alph_getAccounts",
+  "alph_transactionBuildTransfer",
+  "alph_transactionBuildContract",
+  "alph_transactionBuildScript",
+  "alph_transactionSubmit",
 ];
+export interface Account {
+  chainId: number;
+  address: string;
+  pubkey: string;
+  group: number;
+}
+export type GetAccountsResult = Account[];
+export type TransactionBuildTransferParams = node.BuildTransaction;
+export type TransactionBuildTransferResult = node.BuildTransactionResult;
+export type transactionBuildContractParams = node.BuildContractDeployScriptTx;
+export type transactionBuildContractResult = node.BuildContractDeployScriptTxResult;
+export type transactionBuildScriptParams = node.BuildScriptTx;
+export type transactionBuildScriptResult = node.BuildScriptTxResult;
+export type TransactionSubmitParams = node.SubmitTransaction;
+export type TransactionSubmitResult = node.TxResult;
 
 export const providerEvents = {
   changed: {
-    chains: "chainsChanged",
+    chain: "chainChanged",
     accounts: "accountsChanged",
   },
 };
 
+export interface AlephiumRpcConfig {
+  custom?: {
+    [chainId: string]: string;
+  };
+}
+
+export function getRpcUrl(chainId: number, rpc?: AlephiumRpcConfig): string | undefined {
+  let rpcUrl: string | undefined;
+  if (rpc && rpc.custom) {
+    rpcUrl = rpc.custom[chainId];
+  }
+  return rpcUrl;
+}
+
 export interface AlephiumProviderOptions {
-  chains: string[];
+  chainId: number;
+  chainGroup: number;
   methods?: string[];
+  rpc?: AlephiumRpcConfig;
   client?: SignerConnectionClientOpts;
 }
 
 class AlephiumProvider {
   public events: any = new EventEmitter();
 
-  public namespace = "alephium";
-  public chains: string[] = [];
-  public methods: string[] = signerMethods;
+  private rpc: AlephiumRpcConfig | undefined;
 
-  public accounts: string[] = [];
+  public namespace = "alephium";
+  public chainId: number;
+  public chainGroup: number;
+  public methods = signerMethods;
+
+  public accounts: Account[] = [];
 
   public signer: JsonRpcProvider;
+  public http: JsonRpcProvider | undefined;
 
-  constructor(opts?: AlephiumProviderOptions) {
-    this.chains = opts?.chains || this.chains;
-    this.methods = opts?.methods ? [...opts?.methods, ...this.methods] : this.methods;
-    this.signer = this.setSignerProvider(opts?.client);
+  constructor(opts: AlephiumProviderOptions) {
+    this.rpc = opts.rpc;
+    this.chainId = opts.chainId;
+    this.chainGroup = opts.chainGroup;
+    this.methods = opts.methods ? [...opts.methods, ...this.methods] : this.methods;
+    this.signer = this.setSignerProvider(opts.client);
+    this.http = this.setHttpProvider(this.chainId);
     this.registerEventListeners();
   }
 
   public async request<T = unknown>(args: RequestArguments, chainId?: string): Promise<T> {
-    if (this.methods.includes(args.method)) {
-      const context =
-        typeof chainId !== "undefined" ? { chainId: this.formatChainId(chainId) } : undefined;
-      return this.signer.request(args, context);
+    if (args.method === "alph_getAccounts") {
+      return this.accounts as any;
     }
-    return Promise.reject('Invalid method was passed')
+    if (this.methods.includes(args.method)) {
+      return this.signer.request(args, {
+        chain: this.formatChain(this.chainId, this.chainGroup),
+      });
+    }
+    return Promise.reject("Invalid method was passed");
   }
 
-  public async enable(): Promise<any> {
-    return await this.request({ method: "alephium_getAccounts" });
-  }
-
-  public async connect(): Promise<void> {
+  public async connect(): Promise<GetAccountsResult> {
     await this.signer.connect();
+    return this.accounts;
+  }
+
+  get connected(): boolean {
+    return (this.signer.connection as SignerConnection).connected;
+  }
+
+  get connecting(): boolean {
+    return (this.signer.connection as SignerConnection).connecting;
   }
 
   public async disconnect(): Promise<void> {
@@ -87,72 +138,94 @@ class AlephiumProvider {
   private registerEventListeners() {
     this.signer.on("connect", async () => {
       const chains = (this.signer.connection as SignerConnection).chains;
-      if (chains && chains.length) this.setChainId(chains);
+      if (chains && chains.length) this.setChain(chains);
       const accounts = (this.signer.connection as SignerConnection).accounts;
       if (accounts && accounts.length) this.setAccounts(accounts);
     });
     this.signer.connection.on(SIGNER_EVENTS.created, (session: SessionTypes.Settled) => {
-      this.setChainId(session.permissions.blockchain.chains);
+      this.setChain(session.permissions.blockchain.chains);
       this.setAccounts(session.state.accounts);
     });
     this.signer.connection.on(SIGNER_EVENTS.updated, (session: SessionTypes.Settled) => {
-      this.setChainId(session.permissions.blockchain.chains);
-      if (session.state.accounts !== this.accounts) {
+      const chain = this.formatChain(this.chainId, this.chainGroup);
+      if (!session.permissions.blockchain.chains.includes(chain)) {
+        this.setChain(session.permissions.blockchain.chains);
+      }
+      if (session.state.accounts.map(this.parseAccount) !== this.accounts) {
         this.setAccounts(session.state.accounts);
       }
     });
     this.signer.connection.on(
       SIGNER_EVENTS.notification,
       (notification: SessionTypes.Notification) => {
-        this.events.emit(notification.type, notification.data);
+        if (notification.type === providerEvents.changed.accounts) {
+          this.accounts = notification.data;
+          this.events.emit(providerEvents.changed.accounts, this.accounts);
+        } else if (notification.type === providerEvents.changed.chain) {
+          this.chainId = notification.data;
+          this.events.emit(providerEvents.changed.chain, this.chainId);
+        } else {
+          this.events.emit(notification.type, notification.data);
+        }
       },
     );
     this.signer.on("disconnect", () => {
       this.events.emit("disconnect");
     });
+    this.events.on(providerEvents.changed.chain, chainId => this.setHttpProvider(chainId));
   }
 
   private setSignerProvider(client?: SignerConnectionClientOpts) {
     const connection = new SignerConnection({
-      chains: this.chains.map(x => this.formatChainId(x)),
+      chains: [this.formatChain(this.chainId, this.chainGroup)],
       methods: this.methods,
       client,
     });
     return new JsonRpcProvider(connection);
   }
 
-  private isCompatibleChainId(chainId: string): boolean {
-    return chainId.startsWith(`${this.namespace}:`);
+  private setHttpProvider(chainId: number): JsonRpcProvider | undefined {
+    const rpcUrl = getRpcUrl(chainId, this.rpc);
+    if (typeof rpcUrl === "undefined") return undefined;
+    const http = new JsonRpcProvider(new HttpConnection(rpcUrl));
+    return http;
   }
 
-  private formatChainId(chainId: string): string {
-    return `${this.namespace}:${chainId}`;
+  private isCompatibleChain(chain: string): boolean {
+    return chain.startsWith(`${this.namespace}:`);
   }
 
-  private parseChainId(chainId: string): string {
-    return chainId.split(":")[1];
+  private formatChain(chainId: number, chainGroup: number): string {
+    return `${this.namespace}:${chainId}:${chainGroup}`;
   }
 
-  private setChainId(chains: string[]) {
-    const compatible = chains
-      .filter(x => this.isCompatibleChainId(x))
-      .map(x => this.parseChainId(x));
+  private parseChain(chainString: string): [number, number] {
+    const [_ /* namespace */, chainId, chainGroup] = chainString.split(":");
+    return [Number(chainId), Number(chainGroup)];
+  }
+
+  private setChain(chains: string[]) {
+    const compatible = chains.filter(x => this.isCompatibleChain(x));
     if (compatible.length) {
-      this.chains = compatible;
-      this.events.emit(providerEvents.changed.chains, this.chains);
+      [this.chainId, this.chainGroup] = this.parseChain(compatible[0]);
+      this.events.emit(providerEvents.changed.chain, [this.chainId, this.chainGroup]);
     }
   }
 
-  private parseAccountId(account: string): { chainId: string; address: string } {
-    const [namespace, reference, address] = account.split(":");
-    const chainId = `${namespace}:${reference}`;
-    return { chainId, address };
+  private parseAccount(account: string): Account {
+    const [_ /* namespace */, chainId, address, pubkey, group] = account.split(":");
+    return {
+      chainId: Number(chainId),
+      address: address,
+      pubkey: pubkey,
+      group: Number(group),
+    };
   }
 
   private setAccounts(accounts: string[]) {
     this.accounts = accounts
-      .filter(x => this.chains.includes(this.parseChainId(this.parseAccountId(x).chainId)))
-      .map(x => this.parseAccountId(x).address);
+      .map(this.parseAccount)
+      .filter(account => account.chainId === this.chainId && account.group === this.chainGroup);
     this.events.emit(providerEvents.changed.accounts, this.accounts);
   }
 }
