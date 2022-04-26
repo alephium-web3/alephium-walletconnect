@@ -5,9 +5,8 @@ import { SIGNER_EVENTS } from "@walletconnect/signer-connection";
 import { formatJsonRpcError, formatJsonRpcResult } from "@walletconnect/jsonrpc-utils";
 import { convertHttpResponse, CliqueClient, Signer, PrivateKeySigner } from "alephium-web3";
 
-import {
+import AlephiumProvider, {
   Account,
-  AlephiumProvider,
   SignContractCreationTxParams,
   SignTransferTxParams,
   SignResult,
@@ -122,8 +121,16 @@ export class WalletClient {
   }
 
   private getSessionState() {
-    const account = `alephium:${this.networkId}:${this.signer.address}:${this.signer.publicKey}:${this.signer.group}`;
-    return { accounts: [account] };
+    return {
+      accounts: [
+        AlephiumProvider.formatAccount(
+          this.networkId,
+          this.signer.address,
+          this.signer.publicKey,
+          this.signer.group,
+        ),
+      ],
+    };
   }
 
   private async updateSession() {
@@ -137,7 +144,9 @@ export class WalletClient {
     if (typeof this.topic === "undefined") return;
     await this.client.upgrade({
       topic: this.topic,
-      permissions: { blockchain: { chains: [`alephium:${this.networkId}:${this.signer.group}`] } },
+      permissions: {
+        blockchain: { chains: [AlephiumProvider.formatChain(this.networkId, this.signer.group)] },
+      },
     });
     await this.updateAccounts();
   }

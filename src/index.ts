@@ -28,6 +28,7 @@ export interface Account {
   pubkey: string;
   group: number;
 }
+export type GetAccountsParams = undefined;
 export type GetAccountsResult = Account[];
 export interface SignResult {
   unsignedTx: string;
@@ -44,6 +45,36 @@ export type SignUnsignedTxParams = { unsignedTx: string };
 export type SignUnsignedTxResult = SignResult;
 export type SignMessageParams = { message: string };
 export type SignMessageResult = { signature: string };
+
+type SignerMethodsTable = {
+  alph_getAccounts: {
+    params: GetAccountsParams;
+    result: GetAccountsResult;
+  };
+  alph_signTransferTx: {
+    params: SignTransferTxParams;
+    result: SignTransferTxResult;
+  };
+  alph_signContractCreationTx: {
+    params: SignContractCreationTxParams;
+    result: SignContractCreationTxResult;
+  };
+  alph_signScriptTx: {
+    params: SignScriptTxParams;
+    result: SignScriptTxResult;
+  };
+  alph_signUnsignedTx: {
+    params: SignUnsignedTxParams;
+    result: SignUnsignedTxResult;
+  };
+  alph_signMessage: {
+    params: SignMessageParams;
+    result: SignMessageResult;
+  };
+};
+type SignerMethods = keyof SignerMethodsTable;
+export type MethodParams<T extends SignerMethods> = SignerMethodsTable[T]["params"];
+export type MethodResult<T extends SignerMethods> = SignerMethodsTable[T]["result"];
 
 export const providerEvents = {
   changed: {
@@ -79,7 +110,7 @@ class AlephiumProvider {
 
   private rpc: AlephiumRpcConfig | undefined;
 
-  public namespace = "alephium";
+  public static namespace = "alephium";
   public networkId: number;
   public chainGroup: number;
   public methods = signerMethods;
@@ -106,7 +137,7 @@ class AlephiumProvider {
     }
     if (this.methods.includes(args.method)) {
       return this.signer.request(args, {
-        chain: this.formatChain(this.networkId, this.chainGroup),
+        chain: AlephiumProvider.formatChain(this.networkId, this.chainGroup),
       });
     }
     return Promise.reject(`Invalid method was passed ${args.method}`);
@@ -146,6 +177,41 @@ class AlephiumProvider {
     return true;
   }
 
+  // ---------- Methods ----------------------------------------------- //
+
+  private typedRequest<T extends SignerMethods>(
+    method: T,
+    params: MethodParams<T>,
+  ): Promise<MethodResult<T>> {
+    return this.request({ method: method, params: params });
+  }
+
+  public getAccounts(): Promise<Account[]> {
+    return this.typedRequest("alph_getAccounts", undefined);
+  }
+
+  public async signTransferTx(params: SignTransferTxParams): Promise<SignTransferTxResult> {
+    return this.typedRequest("alph_signTransferTx", params);
+  }
+
+  public async signContractCreationTx(
+    params: SignContractCreationTxParams,
+  ): Promise<SignContractCreationTxResult> {
+    return this.typedRequest("alph_signContractCreationTx", params);
+  }
+
+  public async signScriptTx(params: SignScriptTxParams): Promise<SignScriptTxResult> {
+    return this.typedRequest("alph_signScriptTx", params);
+  }
+
+  public async signUnsignedTx(params: SignUnsignedTxParams): Promise<SignUnsignedTxResult> {
+    return this.typedRequest("alph_signUnsignedTx", params);
+  }
+
+  public async signMessage(params: SignMessageParams): Promise<SignMessageResult> {
+    return this.typedRequest("alph_signMessage", params);
+  }
+
   // ---------- Private ----------------------------------------------- //
 
   private registerEventListeners() {
@@ -160,11 +226,11 @@ class AlephiumProvider {
       this.setAccounts(session.state.accounts);
     });
     this.signer.connection.on(SIGNER_EVENTS.updated, (session: SessionTypes.Settled) => {
-      const chain = this.formatChain(this.networkId, this.chainGroup);
+      const chain = AlephiumProvider.formatChain(this.networkId, this.chainGroup);
       if (!session.permissions.blockchain.chains.includes(chain)) {
         this.setChain(session.permissions.blockchain.chains);
       }
-      if (session.state.accounts.map(this.parseAccount) !== this.accounts) {
+      if (session.state.accounts.map(AlephiumProvider.parseAccount) !== this.accounts) {
         this.setAccounts(session.state.accounts);
       }
     });
@@ -190,7 +256,7 @@ class AlephiumProvider {
 
   private setSignerProvider(client?: SignerConnectionClientOpts) {
     const connection = new SignerConnection({
-      chains: [this.formatChain(this.networkId, this.chainGroup)],
+      chains: [AlephiumProvider.formatChain(this.networkId, this.chainGroup)],
       methods: this.methods,
       client,
     });
@@ -205,28 +271,34 @@ class AlephiumProvider {
   }
 
   private isCompatibleChain(chain: string): boolean {
-    return chain.startsWith(`${this.namespace}:`);
+    return chain.startsWith(`${AlephiumProvider.namespace}:`);
   }
 
-  private formatChain(networkId: number, chainGroup: number): string {
-    return `${this.namespace}:${networkId}:${chainGroup}`;
+  static formatChain(networkId: number, chainGroup: number): string {
+    return `${AlephiumProvider.namespace}:${networkId}-${chainGroup}`;
   }
 
-  private parseChain(chainString: string): [number, number] {
-    const [_ /* namespace */, networkId, chainGroup] = chainString.split(":");
+  static parseChain(chainString: string): [number, number] {
+    const [_ /* namespace */, networkId, chainGroup] = chainString.replace("-", ":").split(":");
     return [Number(networkId), Number(chainGroup)];
   }
 
   private setChain(chains: string[]) {
     const compatible = chains.filter(x => this.isCompatibleChain(x));
     if (compatible.length) {
-      [this.networkId, this.chainGroup] = this.parseChain(compatible[0]);
+      [this.networkId, this.chainGroup] = AlephiumProvider.parseChain(compatible[0]);
       this.events.emit(providerEvents.changed.chain, [this.networkId, this.chainGroup]);
     }
   }
 
-  private parseAccount(account: string): Account {
-    const [_ /* namespace */, networkId, address, pubkey, group] = account.split(":");
+  static formatAccount(networkId: number, address: string, pubkey: string, group: number): string {
+    return `${this.namespace}:${networkId}:${address}-${pubkey}-${group}`;
+  }
+
+  static parseAccount(account: string): Account {
+    const [_ /* namespace */, networkId, address, pubkey, group] = account
+      .replace("-", ":")
+      .split(":");
     return {
       networkId: Number(networkId),
       address: address,
@@ -237,7 +309,7 @@ class AlephiumProvider {
 
   private setAccounts(accounts: string[]) {
     this.accounts = accounts
-      .map(this.parseAccount)
+      .map(AlephiumProvider.parseAccount)
       .filter(account => account.networkId === this.networkId && account.group === this.chainGroup);
     this.events.emit(providerEvents.changed.accounts, this.accounts);
   }
