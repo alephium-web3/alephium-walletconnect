@@ -21,7 +21,7 @@ export const signerMethods = [
   "alph_signMessage",
 ];
 export interface Account {
-  chainId: number;
+  networkId: number;
   address: string;
   pubkey: string;
   group: number;
@@ -51,20 +51,20 @@ export const providerEvents = {
 
 export interface AlephiumRpcConfig {
   custom?: {
-    [chainId: string]: string;
+    [networkId: string]: string;
   };
 }
 
-export function getRpcUrl(chainId: number, rpc?: AlephiumRpcConfig): string | undefined {
+export function getRpcUrl(networkId: number, rpc?: AlephiumRpcConfig): string | undefined {
   let rpcUrl: string | undefined;
   if (rpc && rpc.custom) {
-    rpcUrl = rpc.custom[chainId];
+    rpcUrl = rpc.custom[networkId];
   }
   return rpcUrl;
 }
 
 export interface AlephiumProviderOptions {
-  chainId: number;
+  networkId: number;
   chainGroup: number;
   methods?: string[];
   rpc?: AlephiumRpcConfig;
@@ -77,7 +77,7 @@ class AlephiumProvider {
   private rpc: AlephiumRpcConfig | undefined;
 
   public namespace = "alephium";
-  public chainId: number;
+  public networkId: number;
   public chainGroup: number;
   public methods = signerMethods;
 
@@ -88,11 +88,11 @@ class AlephiumProvider {
 
   constructor(opts: AlephiumProviderOptions) {
     this.rpc = opts.rpc;
-    this.chainId = opts.chainId;
+    this.networkId = opts.networkId;
     this.chainGroup = opts.chainGroup;
     this.methods = opts.methods ? [...opts.methods, ...this.methods] : this.methods;
     this.signer = this.setSignerProvider(opts.client);
-    this.http = this.setHttpProvider(this.chainId);
+    this.http = this.setHttpProvider(this.networkId);
     this.registerEventListeners();
   }
 
@@ -103,7 +103,7 @@ class AlephiumProvider {
     }
     if (this.methods.includes(args.method)) {
       return this.signer.request(args, {
-        chain: this.formatChain(this.chainId, this.chainGroup),
+        chain: this.formatChain(this.networkId, this.chainGroup),
       });
     }
     return Promise.reject(`Invalid method was passed ${args.method}`);
@@ -157,7 +157,7 @@ class AlephiumProvider {
       this.setAccounts(session.state.accounts);
     });
     this.signer.connection.on(SIGNER_EVENTS.updated, (session: SessionTypes.Settled) => {
-      const chain = this.formatChain(this.chainId, this.chainGroup);
+      const chain = this.formatChain(this.networkId, this.chainGroup);
       if (!session.permissions.blockchain.chains.includes(chain)) {
         this.setChain(session.permissions.blockchain.chains);
       }
@@ -172,8 +172,8 @@ class AlephiumProvider {
           this.accounts = notification.data;
           this.events.emit(providerEvents.changed.accounts, this.accounts);
         } else if (notification.type === providerEvents.changed.chain) {
-          this.chainId = notification.data;
-          this.events.emit(providerEvents.changed.chain, this.chainId);
+          this.networkId = notification.data;
+          this.events.emit(providerEvents.changed.chain, this.networkId);
         } else {
           this.events.emit(notification.type, notification.data);
         }
@@ -182,20 +182,20 @@ class AlephiumProvider {
     this.signer.on("disconnect", () => {
       this.events.emit("disconnect");
     });
-    this.events.on(providerEvents.changed.chain, chainId => this.setHttpProvider(chainId));
+    this.events.on(providerEvents.changed.chain, networkId => this.setHttpProvider(networkId));
   }
 
   private setSignerProvider(client?: SignerConnectionClientOpts) {
     const connection = new SignerConnection({
-      chains: [this.formatChain(this.chainId, this.chainGroup)],
+      chains: [this.formatChain(this.networkId, this.chainGroup)],
       methods: this.methods,
       client,
     });
     return new JsonRpcProvider(connection);
   }
 
-  private setHttpProvider(chainId: number): JsonRpcProvider | undefined {
-    const rpcUrl = getRpcUrl(chainId, this.rpc);
+  private setHttpProvider(networkId: number): JsonRpcProvider | undefined {
+    const rpcUrl = getRpcUrl(networkId, this.rpc);
     if (typeof rpcUrl === "undefined") return undefined;
     const http = new JsonRpcProvider(new HttpConnection(rpcUrl));
     return http;
@@ -205,27 +205,27 @@ class AlephiumProvider {
     return chain.startsWith(`${this.namespace}:`);
   }
 
-  private formatChain(chainId: number, chainGroup: number): string {
-    return `${this.namespace}:${chainId}:${chainGroup}`;
+  private formatChain(networkId: number, chainGroup: number): string {
+    return `${this.namespace}:${networkId}:${chainGroup}`;
   }
 
   private parseChain(chainString: string): [number, number] {
-    const [_ /* namespace */, chainId, chainGroup] = chainString.split(":");
-    return [Number(chainId), Number(chainGroup)];
+    const [_ /* namespace */, networkId, chainGroup] = chainString.split(":");
+    return [Number(networkId), Number(chainGroup)];
   }
 
   private setChain(chains: string[]) {
     const compatible = chains.filter(x => this.isCompatibleChain(x));
     if (compatible.length) {
-      [this.chainId, this.chainGroup] = this.parseChain(compatible[0]);
-      this.events.emit(providerEvents.changed.chain, [this.chainId, this.chainGroup]);
+      [this.networkId, this.chainGroup] = this.parseChain(compatible[0]);
+      this.events.emit(providerEvents.changed.chain, [this.networkId, this.chainGroup]);
     }
   }
 
   private parseAccount(account: string): Account {
-    const [_ /* namespace */, chainId, address, pubkey, group] = account.split(":");
+    const [_ /* namespace */, networkId, address, pubkey, group] = account.split(":");
     return {
-      chainId: Number(chainId),
+      networkId: Number(networkId),
       address: address,
       pubkey: pubkey,
       group: Number(group),
@@ -235,7 +235,7 @@ class AlephiumProvider {
   private setAccounts(accounts: string[]) {
     this.accounts = accounts
       .map(this.parseAccount)
-      .filter(account => account.chainId === this.chainId && account.group === this.chainGroup);
+      .filter(account => account.networkId === this.networkId && account.group === this.chainGroup);
     this.events.emit(providerEvents.changed.accounts, this.accounts);
   }
 }

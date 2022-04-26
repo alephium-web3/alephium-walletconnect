@@ -9,7 +9,7 @@ import { Account, AlephiumProvider } from "../../src";
 
 export interface WalletClientOpts {
   privateKey: string;
-  chainId: number;
+  networkId: number;
   rpcUrl: string;
 }
 
@@ -19,7 +19,7 @@ export class WalletClient {
   public provider: AlephiumProvider;
   public cliqueClient: CliqueClient;
   public signer: Signer;
-  public chainId: number;
+  public networkId: number;
   public rpcUrl: string;
 
   public client?: IClient;
@@ -41,7 +41,7 @@ export class WalletClient {
   get accounts(): Account[] {
     return [
       {
-        chainId: this.chainId,
+        networkId: this.networkId,
         address: this.signer.address,
         pubkey: this.signer.publicKey,
         group: this.signer.group,
@@ -51,7 +51,7 @@ export class WalletClient {
 
   constructor(provider: AlephiumProvider, opts: Partial<WalletClientOpts>) {
     this.provider = provider;
-    this.chainId = opts?.chainId || 4;
+    this.networkId = opts?.networkId || 4;
     this.rpcUrl = opts?.rpcUrl || "http://127.0.0.1:22973";
     this.cliqueClient = new CliqueClient({ baseUrl: this.rpcUrl });
     this.signer = this.getWallet(this.cliqueClient, opts.privateKey);
@@ -62,8 +62,8 @@ export class WalletClient {
     await this.updateAccounts();
   }
 
-  public async changeChain(chainId: number, rpcUrl: string) {
-    this.setChainId(chainId, rpcUrl);
+  public async changeChain(networkId: number, rpcUrl: string) {
+    this.setChainId(networkId, rpcUrl);
     await this.updateChain();
   }
 
@@ -77,9 +77,9 @@ export class WalletClient {
     this.signer = this.getWallet(this.cliqueClient, privateKey);
   }
 
-  private setChainId(chainId: number, rpcUrl: string) {
-    if (this.chainId !== chainId) {
-      this.chainId = chainId;
+  private setChainId(networkId: number, rpcUrl: string) {
+    if (this.networkId !== networkId) {
+      this.networkId = networkId;
     }
     if (this.rpcUrl !== rpcUrl) {
       this.rpcUrl = rpcUrl;
@@ -96,7 +96,7 @@ export class WalletClient {
   private async emitChainChangedEvent() {
     if (typeof this.client === "undefined") return;
     if (typeof this.topic === "undefined") return;
-    const notification = { type: "chainChanged", data: this.chainId };
+    const notification = { type: "chainChanged", data: this.networkId };
     await this.client.notify({ topic: this.topic, notification });
   }
 
@@ -109,7 +109,7 @@ export class WalletClient {
   }
 
   private getSessionState() {
-    const account = `alephium:${this.chainId}:${this.signer.address}:${this.signer.publicKey}:${this.signer.group}`;
+    const account = `alephium:${this.networkId}:${this.signer.address}:${this.signer.publicKey}:${this.signer.group}`;
     return { accounts: [account] };
   }
 
@@ -124,7 +124,7 @@ export class WalletClient {
     if (typeof this.topic === "undefined") return;
     await this.client.upgrade({
       topic: this.topic,
-      permissions: { blockchain: { chains: [`alephium:${this.chainId}:${this.signer.group}`] } },
+      permissions: { blockchain: { chains: [`alephium:${this.networkId}:${this.signer.group}`] } },
     });
     await this.updateAccounts();
   }
@@ -175,7 +175,7 @@ export class WalletClient {
           throw new Error("Client not initialized");
         }
         const { topic, chainId, request } = requestEvent;
-        const chain = chainId;
+        const chain = chainId; // just a rename
 
         // ignore if unmatched topic
         if (topic !== this.topic) return;
@@ -185,11 +185,11 @@ export class WalletClient {
           if (typeof chain === "undefined") {
             throw new Error("Missing target chain");
           }
-          const [_, chainId, group] = chain.split(":");
+          const [_, networkId, group] = chain.split(":");
           // reject if unmatched chain
-          if (parseInt(chainId, 10) !== this.chainId || Number(group) != this.group) {
+          if (Number(networkId) !== this.networkId || Number(group) != this.group) {
             throw new Error(
-              `Target chain (${chainId}, ${group}) does not match active chain (${this.chainId}, ${this.group})`,
+              `Target chain (${networkId}, ${group}) does not match active chain (${this.networkId}, ${this.group})`,
             );
           }
 
