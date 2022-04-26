@@ -10,12 +10,17 @@ import {
 } from "@walletconnect/signer-connection";
 import { node } from "alephium-web3";
 
+/*
+ * Note:
+ * 1. the client could potentially submit the signed transaction
+ * 2. the client could disable the support of `alph_signMessage`
+ */
 export const signerMethods = [
   "alph_getAccounts",
-  "alph_transactionBuildTransfer",
-  "alph_transactionBuildContract",
-  "alph_transactionBuildScript",
-  "alph_transactionSubmit",
+  "alph_signTransferTx",
+  "alph_signContractCreationTx",
+  "alph_signScriptTx",
+  "alph_signMessage",
 ];
 export interface Account {
   chainId: number;
@@ -24,14 +29,20 @@ export interface Account {
   group: number;
 }
 export type GetAccountsResult = Account[];
-export type TransactionBuildTransferParams = node.BuildTransaction;
-export type TransactionBuildTransferResult = node.BuildTransactionResult;
-export type transactionBuildContractParams = node.BuildContractDeployScriptTx;
-export type transactionBuildContractResult = node.BuildContractDeployScriptTxResult;
-export type transactionBuildScriptParams = node.BuildScriptTx;
-export type transactionBuildScriptResult = node.BuildScriptTxResult;
-export type TransactionSubmitParams = node.SubmitTransaction;
-export type TransactionSubmitResult = node.TxResult;
+export interface SignResult {
+  unsignedTx: string;
+  txId: string;
+  signature: string;
+  submitted: boolean;
+}
+export type BuildTransferTxParams = node.BuildTransaction;
+export type BuildTransferTxResult = SignResult;
+export type BuildContractCreationTxParams = node.BuildContractDeployScriptTx;
+export type BuildContractCreationTxResult = SignResult;
+export type BuildScriptTxParams = node.BuildScriptTx;
+export type BuildScriptTxResult = SignResult;
+export type SignMessageParams = { message: string };
+export type SignMessageResult = { signature: string };
 
 export const providerEvents = {
   changed: {
@@ -96,7 +107,7 @@ class AlephiumProvider {
         chain: this.formatChain(this.chainId, this.chainGroup),
       });
     }
-    return Promise.reject("Invalid method was passed");
+    return Promise.reject(`Invalid method was passed ${args.method}`);
   }
 
   public async connect(): Promise<GetAccountsResult> {
