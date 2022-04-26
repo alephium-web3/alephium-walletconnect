@@ -20,7 +20,6 @@ export class WalletClient {
   public cliqueClient: CliqueClient;
   public signer: Signer;
   public chainId: number;
-  public group: number
   public rpcUrl: string;
 
   public client?: IClient;
@@ -33,6 +32,10 @@ export class WalletClient {
     const walletClient = new WalletClient(provider, opts);
     await walletClient.initialize(opts);
     return walletClient;
+  }
+
+  get group(): number {
+    return this.signer.group;
   }
 
   get accounts(): Account[] {
@@ -169,7 +172,7 @@ export class WalletClient {
       CLIENT_EVENTS.session.request,
       async (requestEvent: SessionTypes.RequestEvent) => {
         if (typeof this.client === "undefined") {
-          throw new Error("Client not inititialized");
+          throw new Error("Client not initialized");
         }
         const { topic, chainId, request } = requestEvent;
         const chain = chainId;
@@ -183,10 +186,10 @@ export class WalletClient {
             throw new Error("Missing target chain");
           }
           const [_, chainId, group] = chain.split(":");
-          // reject if unmatched chainId
-          if (parseInt(chainId, 10) !== this.chainId) {
+          // reject if unmatched chain
+          if (parseInt(chainId, 10) !== this.chainId || Number(group) != this.group) {
             throw new Error(
-              `Target chainId (${chainId}) does not match active chainId (${this.chainId})`,
+              `Target chain (${chainId}, ${group}) does not match active chain (${this.chainId}, ${this.group})`,
             );
           }
 

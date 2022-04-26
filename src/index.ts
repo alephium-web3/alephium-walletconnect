@@ -10,11 +10,9 @@ import {
 } from "@walletconnect/signer-connection";
 import { node } from "alephium-web3";
 
-/*
- * Note:
- * 1. the client could potentially submit the signed transaction
- * 2. the client could disable the support of `alph_signMessage`
- */
+// Note:
+// 1. the wallet client could potentially submit the signed transaction.
+// 2. the wallet client could disable the support of `alph_signMessage`.
 export const signerMethods = [
   "alph_getAccounts",
   "alph_signTransferTx",
@@ -98,7 +96,8 @@ class AlephiumProvider {
     this.registerEventListeners();
   }
 
-  public async request<T = unknown>(args: RequestArguments, chainId?: string): Promise<T> {
+  // The provider only supports signer methods. The other requests should use Alephium Rest API.
+  public async request<T = unknown>(args: RequestArguments): Promise<T> {
     if (args.method === "alph_getAccounts") {
       return this.accounts as any;
     }
