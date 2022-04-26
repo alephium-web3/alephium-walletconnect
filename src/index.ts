@@ -13,11 +13,13 @@ import { node } from "alephium-web3";
 // Note:
 // 1. the wallet client could potentially submit the signed transaction.
 // 2. the wallet client could disable the support of `alph_signMessage`.
+// 3. `alph_signUnsignedTx` can be used for complicated transactions (e.g. multisig).
 export const signerMethods = [
   "alph_getAccounts",
   "alph_signTransferTx",
   "alph_signContractCreationTx",
   "alph_signScriptTx",
+  "alph_signUnsignedTx",
   "alph_signMessage",
 ];
 export interface Account {
@@ -31,14 +33,15 @@ export interface SignResult {
   unsignedTx: string;
   txId: string;
   signature: string;
-  submitted: boolean;
 }
-export type BuildTransferTxParams = node.BuildTransaction;
-export type BuildTransferTxResult = SignResult;
-export type BuildContractCreationTxParams = node.BuildContractDeployScriptTx;
-export type BuildContractCreationTxResult = SignResult;
-export type BuildScriptTxParams = node.BuildScriptTx;
-export type BuildScriptTxResult = SignResult;
+export type SignTransferTxParams = node.BuildTransaction;
+export type SignTransferTxResult = SignResult;
+export type SignContractCreationTxParams = node.BuildContractDeployScriptTx;
+export type SignContractCreationTxResult = SignResult;
+export type SignScriptTxParams = node.BuildScriptTx;
+export type SignScriptTxResult = SignResult;
+export type SignUnsignedTxParams = { unsignedTx: string };
+export type SignUnsignedTxResult = SignResult;
 export type SignMessageParams = { message: string };
 export type SignMessageResult = { signature: string };
 
