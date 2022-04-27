@@ -291,7 +291,7 @@ class AlephiumProvider {
   }
 
   static formatAccount(account: Account): string {
-    return `${this.namespace}:${account.networkId}-${account.group}:${account.address}-${account.pubkey}`;
+    return `${AlephiumProvider.namespace}:${account.networkId}-${account.group}:${account.address}-${account.pubkey}`;
   }
 
   static parseAccount(account: string): Account {
@@ -306,19 +306,37 @@ class AlephiumProvider {
     };
   }
 
-  private setAccounts(accounts: string[], t: string) {
-    if (accounts.join() !== this.accounts.map(a => AlephiumProvider.formatAccount(a)).join()) {
-      console.log(
-        `===== filtered: ${t} ${this.accounts
-          .map(a => AlephiumProvider.formatAccount(a))
-          .join()}, ${accounts.join()}`,
+  private sameAccounts(account0: Account[], account1?: Account[]): boolean {
+    if (typeof account1 === "undefined") {
+      return false;
+    } else {
+      return (
+        account0.map(a => AlephiumProvider.formatAccount(a)).join() ===
+        account1.map(a => AlephiumProvider.formatAccount(a)).join()
       );
-      this.accounts = accounts
-        .map(AlephiumProvider.parseAccount)
-        .filter(
-          account => account.networkId === this.networkId && account.group === this.chainGroup,
-        );
-      this.events.emit(providerEvents.changed.accounts, this.accounts);
+    }
+  }
+
+  private lastSetAccounts?: Account[];
+  private setAccounts(accounts: string[], t: string) {
+    const parsedAccounts = accounts.map(AlephiumProvider.parseAccount);
+    if (this.sameAccounts(parsedAccounts, this.lastSetAccounts)) {
+      return;
+    } else {
+      this.lastSetAccounts = parsedAccounts;
+    }
+
+    const newAccounts = parsedAccounts.filter(
+      account => account.networkId === this.networkId && account.group === this.chainGroup,
+    );
+    if (!this.sameAccounts(newAccounts, this.accounts)) {
+      console.log(
+        `===== filtered: ${t} current ${this.accounts
+          .map(a => AlephiumProvider.formatAccount(a))
+          .join()}, input ${accounts.join()}`,
+      );
+      this.accounts = newAccounts;
+      this.events.emit(providerEvents.changed.accounts, newAccounts);
     }
   }
 }

@@ -10,7 +10,7 @@ import {
   JsonRpcResponse,
 } from "@walletconnect/jsonrpc-utils";
 
-import AlephiumProvider from "../src/index";
+import AlephiumProvider, { Account } from "../src/index";
 import { WalletClient } from "./shared";
 import { groupOfAddress, CliqueClient, NodeSigner, PrivateKeySigner } from "alephium-web3";
 
@@ -173,58 +173,48 @@ describe("AlephiumProvider", function() {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
   it("accountsChanged", async () => {
+    const changes: Account[][] = [];
+    provider.on("accountsChanged", accounts => {
+      console.log(`==== change ${JSON.stringify(accounts)}`);
+      changes.push(accounts);
+    });
     // change to account c
-    await Promise.all([
-      new Promise<void>(async (resolve, reject) => {
-        try {
-          await walletClient.changeAccount(ACCOUNTS.c.privateKey);
-          resolve();
-        } catch (e) {
-          reject(e);
-        }
-      }),
-
-      new Promise<void>((resolve, reject) => {
-        provider.once("accountsChanged", accounts => {
-          console.log(`==== change ${JSON.stringify(accounts)}`);
-          try {
-            if (ACCOUNTS.c.group === ACCOUNTS.a.group) {
-              expect(accounts[0].address).to.eql(ACCOUNTS.c.address);
-            } else {
-              expect(accounts.length).to.eql(0);
-            }
-            resolve();
-          } catch (e) {
-            reject(e);
-          }
-        });
-      }),
-    ]);
-    delay(1000);
+    await walletClient.changeAccount(ACCOUNTS.c.privateKey);
     // change back to account a
-    await Promise.all([
-      new Promise<void>(async (resolve, reject) => {
-        try {
-          await walletClient.changeAccount(ACCOUNTS.a.privateKey);
-          resolve();
-        } catch (e) {
-          reject(e);
-        }
-      }),
+    await walletClient.changeAccount(ACCOUNTS.a.privateKey);
+    delay(2000);
+    console.log(`== result: ${JSON.stringify(changes)}`);
+    // state update
+    if (ACCOUNTS.a.group === ACCOUNTS.c.group) {
+      expect(changes.map(c => c[0].address)).to.eql([ACCOUNTS.c.address, ACCOUNTS.a.address]);
+    } else {
+      expect(changes[0]).to.eql([]);
+      expect(changes[1][0].address).to.eql(ACCOUNTS.a.address);
+      expect(changes[1].length).to.eql(1);
+      expect(changes.length).to.eql(2);
+    }
+    // await Promise.all([
+    //   new Promise<void>((resolve, reject) => {
+    //     provider.once("accountsChanged", accounts => {
+    //       console.log(`==== change 2 ${JSON.stringify(accounts)}`);
+    //       try {
+    //         console.log(`===== account ${JSON.stringify(accounts[0])}`);
+    //         expect(accounts[0].address).to.eql(ACCOUNTS.a.address);
+    //         resolve();
+    //       } catch (e) {
+    //         reject(e);
+    //       }
+    //     });
+    //   }),
 
-      new Promise<void>((resolve, reject) => {
-        provider.once("accountsChanged", accounts => {
-          console.log(`==== change 2 ${JSON.stringify(accounts)}`);
-          try {
-            console.log(`===== account ${JSON.stringify(accounts[0])}`);
-            expect(accounts[0].address).to.eql(ACCOUNTS.a.address);
-            resolve();
-          } catch (e) {
-            reject(e);
-          }
-        });
-      }),
-    ]);
+    //   new Promise<void>(async (resolve, reject) => {
+    //     try {
+    //       resolve();
+    //     } catch (e) {
+    //       reject(e);
+    //     }
+    //   }),
+    // ]);
   });
   // describe("Web3", () => {
   //   let web3: Web3;
