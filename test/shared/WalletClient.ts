@@ -36,7 +36,7 @@ export class WalletClient {
   public client?: IClient;
   public topic?: string;
 
-  public permittedChains: string[] | undefined = undefined;
+  public permittedChains?: string[];
 
   static async init(
     provider: AlephiumProvider,
@@ -105,7 +105,10 @@ export class WalletClient {
   private async emitAccountsChangedEvent() {
     if (typeof this.client === "undefined") return;
     if (typeof this.topic === "undefined") return;
-    const notification = { type: "accountsChanged", data: [AlephiumProvider.formatAccount(this.account)] };
+    const notification = {
+      type: "accountsChanged",
+      data: [AlephiumProvider.formatAccount(this.account)],
+    };
     await this.client.notify({ topic: this.topic, notification });
   }
 
@@ -125,12 +128,21 @@ export class WalletClient {
   }
 
   private getSessionState(): { accounts: string[] } {
-    const groupMatched = this.permittedChains?.find(
+    if (typeof this.permittedChains === "undefined") {
+      console.log("=====================");
+      throw new Error("Permitted chains are not set");
+    }
+    const groupMatched = this.permittedChains.find(
       chain => AlephiumProvider.parseChain(chain)[1] == this.signer.group,
     );
     if (groupMatched) {
       return { accounts: [AlephiumProvider.formatAccount(this.account)] };
     } else {
+      console.log(
+        `===== matched: ${this.permittedChains.join()}, ${this.signer.address}, ${
+          this.signer.group
+        }`,
+      );
       return { accounts: [] };
     }
   }
@@ -138,6 +150,7 @@ export class WalletClient {
   private async updateSession() {
     if (typeof this.client === "undefined") return;
     if (typeof this.topic === "undefined") return;
+    if (typeof this.permittedChains === "undefined") return;
     await this.client.update({ topic: this.topic, state: this.getSessionState() });
   }
 

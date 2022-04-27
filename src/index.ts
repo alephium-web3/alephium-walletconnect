@@ -168,6 +168,9 @@ class AlephiumProvider {
   public removeListener(event: string, listener: any): void {
     this.events.removeListener(event, listener);
   }
+  public removeAllListeners(event: string): void {
+    this.events.removeAllListeners(event);
+  }
   public off(event: string, listener: any): void {
     this.events.off(event, listener);
   }
@@ -306,19 +309,37 @@ class AlephiumProvider {
     };
   }
 
+  private sameAccounts(account0: Account[], account1: Account[]): boolean {
+    return (
+      account0.map(AlephiumProvider.formatAccount).join() ===
+      account1.map(AlephiumProvider.formatAccount).join()
+    );
+  }
+
+  private lastSetAccounts: Account[] = [];
   private setAccounts(accounts: string[], t: string) {
-    if (accounts.join() !== this.accounts.map(a => AlephiumProvider.formatAccount(a)).join()) {
+    const parsedAccounts = accounts.map(AlephiumProvider.parseAccount);
+    if (this.sameAccounts(this.lastSetAccounts, parsedAccounts)) {
+      return;
+    } else {
+      this.lastSetAccounts = parsedAccounts;
+    }
+
+    const newAccounts = parsedAccounts.filter(
+      account => account.networkId === this.networkId && account.group === this.chainGroup,
+    );
+    if (!this.sameAccounts(this.accounts, newAccounts)) {
       console.log(
-        `===== filtered: ${t} ${this.accounts
+        `===== filtered: ${t} current: ${this.accounts
           .map(a => AlephiumProvider.formatAccount(a))
-          .join()}, ${accounts.join()}`,
+          .join()}, input: ${accounts.join()}`,
       );
-      this.accounts = accounts
-        .map(AlephiumProvider.parseAccount)
-        .filter(
-          account => account.networkId === this.networkId && account.group === this.chainGroup,
-        );
-      this.events.emit(providerEvents.changed.accounts, this.accounts);
+      console.log(
+        `====== new accounts: ${newAccounts.map(a => AlephiumProvider.formatAccount(a)).join()}`,
+      );
+
+      this.accounts = newAccounts;
+      this.events.emit(providerEvents.changed.accounts, newAccounts);
     }
   }
 }
