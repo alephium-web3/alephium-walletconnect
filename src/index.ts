@@ -270,7 +270,10 @@ class AlephiumProvider {
   }
 
   private isCompatibleChain(chain: string): boolean {
-    return chain.startsWith(`${AlephiumProvider.namespace}:`);
+    return (
+      chain.startsWith(`${AlephiumProvider.namespace}:`) &&
+      AlephiumProvider.parseChain(chain)[1] === this.chainGroup
+    );
   }
 
   static formatChain(networkId: number, chainGroup: number): string {
@@ -286,7 +289,7 @@ class AlephiumProvider {
     const compatible = chains.filter(x => this.isCompatibleChain(x));
     if (compatible.length) {
       [this.networkId, this.chainGroup] = AlephiumProvider.parseChain(compatible[0]);
-      this.events.emit(providerEvents.changed.chain, [this.networkId, this.chainGroup]);
+      this.events.emit(providerEvents.changed.chain, this.networkId);
     }
   }
 

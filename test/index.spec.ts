@@ -123,7 +123,7 @@ describe("AlephiumProvider", function() {
     expect(walletClient.client?.session.values.length).to.eql(0);
     expect(provider.connected).to.be.false;
   });
-  it.skip("chainChanged", async () => {
+  it("chainChanged", async () => {
     // change to testnet
     await Promise.all([
       new Promise<void>(async (resolve, reject) => {
@@ -172,7 +172,7 @@ describe("AlephiumProvider", function() {
   function delay(ms: number) {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
-  it("accountsChanged", async () => {
+  it.skip("accountsChanged", async () => {
     const changes: Account[][] = [];
     provider.on("accountsChanged", accounts => {
       console.log(`==== change ${JSON.stringify(accounts)}`);
@@ -182,7 +182,7 @@ describe("AlephiumProvider", function() {
     await walletClient.changeAccount(ACCOUNTS.c.privateKey);
     // change back to account a
     await walletClient.changeAccount(ACCOUNTS.a.privateKey);
-    delay(2000);
+    delay(4000);
     console.log(`== result: ${JSON.stringify(changes)}`);
     // state update
     if (ACCOUNTS.a.group === ACCOUNTS.c.group) {
