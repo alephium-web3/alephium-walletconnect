@@ -12,8 +12,7 @@ import { node } from "alephium-web3";
 
 // Note:
 // 1. the wallet client could potentially submit the signed transaction.
-// 2. the wallet client could disable the support of `alph_signMessage`.
-// 3. `alph_signUnsignedTx` can be used for complicated transactions (e.g. multisig).
+// 2. `alph_signUnsignedTx` can be used for complicated transactions (e.g. multisig).
 export const signerMethods = [
   "alph_getAccounts",
   "alph_signTransferTx",
@@ -219,28 +218,28 @@ class AlephiumProvider {
       const chains = (this.signer.connection as SignerConnection).chains;
       if (chains && chains.length) this.setChain(chains);
       const accounts = (this.signer.connection as SignerConnection).accounts;
-      if (accounts && accounts.length) this.setAccounts(accounts);
+      if (accounts && accounts.length) this.setAccounts(accounts, "connect");
     });
     this.signer.connection.on(SIGNER_EVENTS.created, (session: SessionTypes.Settled) => {
       this.setChain(session.permissions.blockchain.chains);
-      this.setAccounts(session.state.accounts);
+      this.setAccounts(session.state.accounts, "created");
     });
     this.signer.connection.on(SIGNER_EVENTS.updated, (session: SessionTypes.Settled) => {
       const chain = AlephiumProvider.formatChain(this.networkId, this.chainGroup);
       if (!session.permissions.blockchain.chains.includes(chain)) {
         this.setChain(session.permissions.blockchain.chains);
       }
-      if (session.state.accounts.map(AlephiumProvider.parseAccount) !== this.accounts) {
-        this.setAccounts(session.state.accounts);
-      }
+      console.log(`===== event update: ${session.state.accounts}`);
+      this.setAccounts(session.state.accounts, "updated");
     });
     this.signer.connection.on(
       SIGNER_EVENTS.notification,
       (notification: SessionTypes.Notification) => {
         if (notification.type === providerEvents.changed.accounts) {
-          this.accounts = notification.data;
-          this.events.emit(providerEvents.changed.accounts, this.accounts);
+          console.log(`==== noti account ${JSON.stringify(notification.data)}`);
+          this.setAccounts(notification.data, "noti accounts");
         } else if (notification.type === providerEvents.changed.chain) {
+          console.log(`==== noti chain ${JSON.stringify(notification.data)}`);
           this.networkId = notification.data;
           this.events.emit(providerEvents.changed.chain, this.networkId);
         } else {
@@ -279,7 +278,7 @@ class AlephiumProvider {
   }
 
   static parseChain(chainString: string): [number, number] {
-    const [_ /* namespace */, networkId, chainGroup] = chainString.replace("-", ":").split(":");
+    const [_ /* namespace */, networkId, chainGroup] = chainString.replace(/-/g, ":").split(":");
     return [Number(networkId), Number(chainGroup)];
   }
 
@@ -291,13 +290,13 @@ class AlephiumProvider {
     }
   }
 
-  static formatAccount(networkId: number, address: string, pubkey: string, group: number): string {
-    return `${this.namespace}:${networkId}:${address}-${pubkey}-${group}`;
+  static formatAccount(account: Account): string {
+    return `${this.namespace}:${account.networkId}-${account.group}:${account.address}-${account.pubkey}`;
   }
 
   static parseAccount(account: string): Account {
-    const [_ /* namespace */, networkId, address, pubkey, group] = account
-      .replace("-", ":")
+    const [_ /* namespace */, networkId, group, address, pubkey] = account
+      .replace(/-/g, ":")
       .split(":");
     return {
       networkId: Number(networkId),
@@ -307,11 +306,20 @@ class AlephiumProvider {
     };
   }
 
-  private setAccounts(accounts: string[]) {
-    this.accounts = accounts
-      .map(AlephiumProvider.parseAccount)
-      .filter(account => account.networkId === this.networkId && account.group === this.chainGroup);
-    this.events.emit(providerEvents.changed.accounts, this.accounts);
+  private setAccounts(accounts: string[], t: string) {
+    if (accounts.join() !== this.accounts.map(a => AlephiumProvider.formatAccount(a)).join()) {
+      console.log(
+        `===== filtered: ${t} ${this.accounts
+          .map(a => AlephiumProvider.formatAccount(a))
+          .join()}, ${accounts.join()}`,
+      );
+      this.accounts = accounts
+        .map(AlephiumProvider.parseAccount)
+        .filter(
+          account => account.networkId === this.networkId && account.group === this.chainGroup,
+        );
+      this.events.emit(providerEvents.changed.accounts, this.accounts);
+    }
   }
 }
 
