@@ -22,7 +22,6 @@ export const signerMethods = [
   "alph_signMessage",
 ];
 export interface Account {
-  networkId: number;
   address: string;
   pubkey: string;
   group: number;
@@ -215,6 +214,7 @@ class AlephiumProvider {
 
   private registerEventListeners() {
     this.signer.on("connect", async () => {
+      console.log(`============== CONNECT`);
       const chains = (this.signer.connection as SignerConnection).chains;
       if (chains && chains.length) this.setChain(chains);
       const accounts = (this.signer.connection as SignerConnection).accounts;
@@ -293,16 +293,13 @@ class AlephiumProvider {
     }
   }
 
-  static formatAccount(account: Account): string {
-    return `${AlephiumProvider.namespace}:${account.networkId}-${account.group}:${account.address}-${account.pubkey}`;
+  static formatAccount(networkId: number, account: Account): string {
+    return `${AlephiumProvider.namespace}:${networkId}-${account.group}:${account.address}-${account.pubkey}`;
   }
 
   static parseAccount(account: string): Account {
-    const [_ /* namespace */, networkId, group, address, pubkey] = account
-      .replace(/-/g, ":")
-      .split(":");
+    const [namespace, networkId, group, address, pubkey] = account.replace(/-/g, ":").split(":");
     return {
-      networkId: Number(networkId),
       address: address,
       pubkey: pubkey,
       group: Number(group),
@@ -314,8 +311,8 @@ class AlephiumProvider {
       return false;
     } else {
       return (
-        account0.map(a => AlephiumProvider.formatAccount(a)).join() ===
-        account1.map(a => AlephiumProvider.formatAccount(a)).join()
+        account0.map(a => AlephiumProvider.formatAccount(this.networkId, a)).join() ===
+        account1.map(a => AlephiumProvider.formatAccount(this.networkId, a)).join()
       );
     }
   }
@@ -329,13 +326,11 @@ class AlephiumProvider {
       this.lastSetAccounts = parsedAccounts;
     }
 
-    const newAccounts = parsedAccounts.filter(
-      account => account.networkId === this.networkId && account.group === this.chainGroup,
-    );
+    const newAccounts = parsedAccounts.filter(account => account.group === this.chainGroup);
     if (!this.sameAccounts(newAccounts, this.accounts)) {
       console.log(
         `===== filtered: ${t} current ${this.accounts
-          .map(a => AlephiumProvider.formatAccount(a))
+          .map(a => AlephiumProvider.formatAccount(this.networkId, a))
           .join()}, input ${accounts.join()}`,
       );
       this.accounts = newAccounts;

@@ -95,6 +95,7 @@ describe("AlephiumProvider", function() {
   let walletAddress: string;
   let receiverAddress: string;
   before(async () => {
+    console.log(`========= START`);
     provider = new AlephiumProvider({
       ...TEST_PROVIDER_OPTS,
       chainGroup: groupOfAddress(ACCOUNTS.a.address),
@@ -122,9 +123,15 @@ describe("AlephiumProvider", function() {
     // expect provider to be disconnected
     expect(walletClient.client?.session.values.length).to.eql(0);
     expect(provider.connected).to.be.false;
+    console.log(`========= END`);
   });
   it("chainChanged", async () => {
     // change to testnet
+    console.log(
+      `--------- : ${provider.accounts
+        .map(a => AlephiumProvider.formatAccount(provider.networkId, a))
+        .join()}`,
+    );
     await Promise.all([
       new Promise<void>(async (resolve, reject) => {
         try {
@@ -147,6 +154,11 @@ describe("AlephiumProvider", function() {
       }),
     ]);
     // change back to devnet
+    console.log(
+      `--------- : ${provider.accounts
+        .map(a => AlephiumProvider.formatAccount(provider.networkId, a))
+        .join()}`,
+    );
     await Promise.all([
       new Promise<void>(async (resolve, reject) => {
         try {
@@ -168,31 +180,88 @@ describe("AlephiumProvider", function() {
         });
       }),
     ]);
+    console.log(
+      `--------- : ${provider.accounts
+        .map(a => AlephiumProvider.formatAccount(provider.networkId, a))
+        .join()}`,
+    );
   });
   function delay(ms: number) {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
-  it.skip("accountsChanged", async () => {
+  it("accountsChanged", async () => {
+    console.log(
+      `======= ACCountsCHANGED: ${provider.accounts
+        .map(a => AlephiumProvider.formatAccount(provider.networkId, a))
+        .join()}`,
+    );
     const changes: Account[][] = [];
     provider.on("accountsChanged", accounts => {
       console.log(`==== change ${JSON.stringify(accounts)}`);
       changes.push(accounts);
     });
     // change to account c
-    await walletClient.changeAccount(ACCOUNTS.c.privateKey);
+    await Promise.all([
+      new Promise<void>(async (resolve, reject) => {
+        try {
+          await walletClient.changeAccount(ACCOUNTS.c.privateKey);
+
+          resolve();
+        } catch (e) {
+          reject(e);
+        }
+      }),
+
+      new Promise<void>((resolve, reject) => {
+        provider.on("accountsChanged", accounts => {
+          try {
+            if (ACCOUNTS.c.group == ACCOUNTS.a.group) {
+              expect(accounts[0].address).to.eql(ACCOUNTS.c.address);
+            } else {
+              expect(accounts).to.eql([]);
+            }
+            resolve();
+          } catch (e) {
+            reject(e);
+          }
+        });
+      }),
+    ]);
+    // await walletClient.changeAccount(ACCOUNTS.c.privateKey);
     // change back to account a
-    await walletClient.changeAccount(ACCOUNTS.a.privateKey);
-    delay(4000);
-    console.log(`== result: ${JSON.stringify(changes)}`);
-    // state update
-    if (ACCOUNTS.a.group === ACCOUNTS.c.group) {
-      expect(changes.map(c => c[0].address)).to.eql([ACCOUNTS.c.address, ACCOUNTS.a.address]);
-    } else {
-      expect(changes[0]).to.eql([]);
-      expect(changes[1][0].address).to.eql(ACCOUNTS.a.address);
-      expect(changes[1].length).to.eql(1);
-      expect(changes.length).to.eql(2);
-    }
+    await Promise.all([
+      new Promise<void>(async (resolve, reject) => {
+        try {
+          await walletClient.changeAccount(ACCOUNTS.a.privateKey);
+          resolve();
+        } catch (e) {
+          reject(e);
+        }
+      }),
+
+      new Promise<void>((resolve, reject) => {
+        provider.on("accountsChanged", accounts => {
+          try {
+            expect(accounts[0].address).to.eql(ACCOUNTS.a.address);
+            resolve();
+          } catch (e) {
+            reject(e);
+          }
+        });
+      }),
+    ]);
+    // await walletClient.changeAccount(ACCOUNTS.a.privateKey);
+    // delay(4000);
+    // console.log(`== result: ${JSON.stringify(changes)}`);
+    // // state update
+    // if (ACCOUNTS.a.group === ACCOUNTS.c.group) {
+    //   expect(changes.map(c => c[0].address)).to.eql([ACCOUNTS.c.address, ACCOUNTS.a.address]);
+    // } else {
+    //   expect(changes[0]).to.eql([]);
+    //   expect(changes[1][0].address).to.eql(ACCOUNTS.a.address);
+    //   expect(changes[1].length).to.eql(1);
+    //   expect(changes.length).to.eql(2);
+    // }
   });
   // describe("Web3", () => {
   //   let web3: Web3;

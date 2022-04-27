@@ -53,7 +53,6 @@ export class WalletClient {
 
   get account(): Account {
     return {
-      networkId: this.networkId,
       address: this.signer.address,
       pubkey: this.signer.publicKey,
       group: this.signer.group,
@@ -84,8 +83,10 @@ export class WalletClient {
   }
 
   public async disconnect() {
+    console.log(`=============== DISCONNECT 0`);
     if (!this.client) return;
     if (!this.topic) return;
+    console.log(`=============== DISCONNECT 1`);
     await this.client.disconnect({ topic: this.topic, reason: ERROR.USER_DISCONNECTED.format() });
   }
 
@@ -107,7 +108,7 @@ export class WalletClient {
     if (typeof this.topic === "undefined") return;
     const notification = {
       type: "accountsChanged",
-      data: [AlephiumProvider.formatAccount(this.account)],
+      data: [AlephiumProvider.formatAccount(this.networkId, this.account)],
     };
     await this.client.notify({ topic: this.topic, notification });
   }
@@ -136,7 +137,7 @@ export class WalletClient {
       chain => AlephiumProvider.parseChain(chain)[1] == this.signer.group,
     );
     if (groupMatched) {
-      return { accounts: [AlephiumProvider.formatAccount(this.account)] };
+      return { accounts: [AlephiumProvider.formatAccount(this.networkId, this.account)] };
     } else {
       return { accounts: [] };
     }
