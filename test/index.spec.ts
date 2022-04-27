@@ -193,28 +193,6 @@ describe("AlephiumProvider", function() {
       expect(changes[1].length).to.eql(1);
       expect(changes.length).to.eql(2);
     }
-    // await Promise.all([
-    //   new Promise<void>((resolve, reject) => {
-    //     provider.once("accountsChanged", accounts => {
-    //       console.log(`==== change 2 ${JSON.stringify(accounts)}`);
-    //       try {
-    //         console.log(`===== account ${JSON.stringify(accounts[0])}`);
-    //         expect(accounts[0].address).to.eql(ACCOUNTS.a.address);
-    //         resolve();
-    //       } catch (e) {
-    //         reject(e);
-    //       }
-    //     });
-    //   }),
-
-    //   new Promise<void>(async (resolve, reject) => {
-    //     try {
-    //       resolve();
-    //     } catch (e) {
-    //       reject(e);
-    //     }
-    //   }),
-    // ]);
   });
   // describe("Web3", () => {
   //   let web3: Web3;
