@@ -10,10 +10,11 @@ import {
   JsonRpcResponse,
 } from "@walletconnect/jsonrpc-utils";
 
-import AlephiumProvider, { Account } from "../src/index";
+import WalletConnectProvider from "../src/index";
 import { WalletClient } from "./shared";
 import {
   groupOfAddress,
+  Account,
   CliqueClient,
   NodeSigner,
   PrivateKeySigner,
@@ -100,17 +101,17 @@ const TEST_ETH_TRANSFER = {
   data: "0x",
 };
 
-describe("AlephiumProvider", function() {
+describe("WalletConnectProvider", function() {
   this.timeout(30_000);
   cliqueClient.init(false);
 
-  let provider: AlephiumProvider;
+  let provider: WalletConnectProvider;
   let walletClient: WalletClient;
   let walletAddress: string;
   let receiverAddress: string;
   before(async () => {
     console.log(`========= START`);
-    provider = new AlephiumProvider({
+    provider = new WalletConnectProvider({
       ...TEST_PROVIDER_OPTS,
       chainGroup: groupOfAddress(ACCOUNTS.a.address),
     });
@@ -143,7 +144,7 @@ describe("AlephiumProvider", function() {
     // change to testnet
     console.log(
       `--------- : ${provider.accounts
-        .map(a => AlephiumProvider.formatAccount(provider.networkId, a))
+        .map(a => WalletConnectProvider.formatAccount(provider.networkId, a))
         .join()}`,
     );
     await Promise.all([
@@ -170,7 +171,7 @@ describe("AlephiumProvider", function() {
     // change back to devnet
     console.log(
       `--------- : ${provider.accounts
-        .map(a => AlephiumProvider.formatAccount(provider.networkId, a))
+        .map(a => WalletConnectProvider.formatAccount(provider.networkId, a))
         .join()}`,
     );
     await Promise.all([
@@ -196,14 +197,14 @@ describe("AlephiumProvider", function() {
     ]);
     console.log(
       `--------- : ${provider.accounts
-        .map(a => AlephiumProvider.formatAccount(provider.networkId, a))
+        .map(a => WalletConnectProvider.formatAccount(provider.networkId, a))
         .join()}`,
     );
   });
   it("accountsChanged", async () => {
     console.log(
       `======= ACCountsCHANGED: ${provider.accounts
-        .map(a => AlephiumProvider.formatAccount(provider.networkId, a))
+        .map(a => WalletConnectProvider.formatAccount(provider.networkId, a))
         .join()}`,
     );
     const changes: Account[][] = [];

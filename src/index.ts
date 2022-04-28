@@ -9,8 +9,9 @@ import {
   SignerConnectionClientOpts,
 } from "@walletconnect/signer-connection";
 import {
-  node,
   SignerProvider,
+  Account,
+  GetAccountsResult,
   SignTransferTxParams,
   SignTransferTxResult,
   SignContractCreationTxParams,
@@ -39,22 +40,10 @@ export const signerMethods = [
 ];
 type SignerMethodsTuple = typeof signerMethods;
 type SignerMethods = SignerMethodsTuple[number];
-export interface Account {
-  address: string;
-  pubkey: string;
-  group: number;
-}
-export type GetAccountsParams = undefined;
-export type GetAccountsResult = Account[];
-export interface SignResult {
-  unsignedTx: string;
-  txId: string;
-  signature: string;
-}
 
 interface SignerMethodsTable extends Record<SignerMethods, { params: any; result: any }> {
   alph_getAccounts: {
-    params: GetAccountsParams;
+    params: undefined;
     result: GetAccountsResult;
   };
   alph_signTransferTx: {
@@ -106,7 +95,7 @@ export function getRpcUrl(networkId: number, rpc?: AlephiumRpcConfig): string | 
   return rpcUrl;
 }
 
-export interface AlephiumProviderOptions {
+export interface WalletConnectProviderOptions {
   networkId: number;
   chainGroup: number;
   methods?: string[];
@@ -114,7 +103,7 @@ export interface AlephiumProviderOptions {
   client?: SignerConnectionClientOpts;
 }
 
-class AlephiumProvider implements SignerProvider {
+class WalletConnectProvider implements SignerProvider {
   public events: any = new EventEmitter();
 
   private rpc: AlephiumRpcConfig | undefined;
@@ -129,7 +118,7 @@ class AlephiumProvider implements SignerProvider {
   public signer: JsonRpcProvider;
   public http: JsonRpcProvider | undefined;
 
-  constructor(opts: AlephiumProviderOptions) {
+  constructor(opts: WalletConnectProviderOptions) {
     this.rpc = opts.rpc;
     this.networkId = opts.networkId;
     this.chainGroup = opts.chainGroup;
@@ -146,7 +135,7 @@ class AlephiumProvider implements SignerProvider {
     }
     if (this.methods.includes(args.method)) {
       return this.signer.request(args, {
-        chainId: AlephiumProvider.formatChain(this.networkId, this.chainGroup),
+        chainId: WalletConnectProvider.formatChain(this.networkId, this.chainGroup),
       });
     }
     return Promise.reject(`Invalid method was passed ${args.method}`);
@@ -240,7 +229,7 @@ class AlephiumProvider implements SignerProvider {
       this.setAccounts(session.state.accounts, "created");
     });
     this.signer.connection.on(SIGNER_EVENTS.updated, (session: SessionTypes.Settled) => {
-      const chain = AlephiumProvider.formatChain(this.networkId, this.chainGroup);
+      const chain = WalletConnectProvider.formatChain(this.networkId, this.chainGroup);
       if (!session.permissions.blockchain.chains.includes(chain)) {
         this.setChain(session.permissions.blockchain.chains);
       }
@@ -270,7 +259,7 @@ class AlephiumProvider implements SignerProvider {
 
   private setSignerProvider(client?: SignerConnectionClientOpts) {
     const connection = new SignerConnection({
-      chains: [AlephiumProvider.formatChain(this.networkId, this.chainGroup)],
+      chains: [WalletConnectProvider.formatChain(this.networkId, this.chainGroup)],
       methods: this.methods,
       client,
     });
@@ -286,13 +275,13 @@ class AlephiumProvider implements SignerProvider {
 
   private isCompatibleChain(chain: string): boolean {
     return (
-      chain.startsWith(`${AlephiumProvider.namespace}:`) &&
-      AlephiumProvider.parseChain(chain)[1] === this.chainGroup
+      chain.startsWith(`${WalletConnectProvider.namespace}:`) &&
+      WalletConnectProvider.parseChain(chain)[1] === this.chainGroup
     );
   }
 
   static formatChain(networkId: number, chainGroup: number): string {
-    return `${AlephiumProvider.namespace}:${networkId}-${chainGroup}`;
+    return `${WalletConnectProvider.namespace}:${networkId}-${chainGroup}`;
   }
 
   static parseChain(chainString: string): [number, number] {
@@ -303,13 +292,13 @@ class AlephiumProvider implements SignerProvider {
   private setChain(chains: string[]) {
     const compatible = chains.filter(x => this.isCompatibleChain(x));
     if (compatible.length) {
-      [this.networkId, this.chainGroup] = AlephiumProvider.parseChain(compatible[0]);
+      [this.networkId, this.chainGroup] = WalletConnectProvider.parseChain(compatible[0]);
       this.events.emit(providerEvents.changed.chain, this.networkId);
     }
   }
 
   static formatAccount(networkId: number, account: Account): string {
-    return `${AlephiumProvider.namespace}:${networkId}-${account.group}:${account.address}-${account.pubkey}`;
+    return `${WalletConnectProvider.namespace}:${networkId}-${account.group}:${account.address}-${account.pubkey}`;
   }
 
   static parseAccount(account: string): Account {
@@ -326,15 +315,15 @@ class AlephiumProvider implements SignerProvider {
       return false;
     } else {
       return (
-        account0.map(a => AlephiumProvider.formatAccount(this.networkId, a)).join() ===
-        account1.map(a => AlephiumProvider.formatAccount(this.networkId, a)).join()
+        account0.map(a => WalletConnectProvider.formatAccount(this.networkId, a)).join() ===
+        account1.map(a => WalletConnectProvider.formatAccount(this.networkId, a)).join()
       );
     }
   }
 
   private lastSetAccounts?: Account[];
   private setAccounts(accounts: string[], t: string) {
-    const parsedAccounts = accounts.map(AlephiumProvider.parseAccount);
+    const parsedAccounts = accounts.map(WalletConnectProvider.parseAccount);
     if (this.sameAccounts(parsedAccounts, this.lastSetAccounts)) {
       return;
     } else {
@@ -345,7 +334,7 @@ class AlephiumProvider implements SignerProvider {
     if (!this.sameAccounts(newAccounts, this.accounts)) {
       console.log(
         `===== filtered: ${t} current ${this.accounts
-          .map(a => AlephiumProvider.formatAccount(this.networkId, a))
+          .map(a => WalletConnectProvider.formatAccount(this.networkId, a))
           .join()}, input ${accounts.join()}`,
       );
       this.accounts = newAccounts;
@@ -354,4 +343,4 @@ class AlephiumProvider implements SignerProvider {
   }
 }
 
-export default AlephiumProvider;
+export default WalletConnectProvider;

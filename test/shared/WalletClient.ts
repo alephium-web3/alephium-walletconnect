@@ -4,20 +4,18 @@ import { ERROR } from "@walletconnect/utils";
 import { SIGNER_EVENTS } from "@walletconnect/signer-connection";
 import { formatJsonRpcError, formatJsonRpcResult } from "@walletconnect/jsonrpc-utils";
 import {
-  convertHttpResponse,
   CliqueClient,
   PrivateKeySigner,
-  SignUnsignedTxResult,
-  SignHexStringParams,
-  SignContractCreationTxParams,
   SignTransferTxParams,
-  SignUnsignedTxParams,
+  SignContractCreationTxParams,
   SignScriptTxParams,
+  SignUnsignedTxParams,
+  SignHexStringParams,
   SignMessageParams,
-  SignMessageResult,
+  Account,
 } from "alephium-web3";
 
-import AlephiumProvider, { Account, SignResult } from "../../src";
+import AlephiumProvider from "../../src";
 
 export interface WalletClientOpts {
   privateKey: string;
@@ -251,7 +249,7 @@ export class WalletClient {
               break;
             case "alph_signUnsignedTx":
               result = await this.signer.signUnsignedTx(
-                (request.params as any) as SignUnsignedTxResult,
+                (request.params as any) as SignUnsignedTxParams,
               );
               break;
             case "alph_signHexString":
