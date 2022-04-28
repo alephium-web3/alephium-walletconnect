@@ -8,7 +8,22 @@ import {
   SIGNER_EVENTS,
   SignerConnectionClientOpts,
 } from "@walletconnect/signer-connection";
-import { node } from "alephium-web3";
+import {
+  node,
+  SignerProvider,
+  SignTransferTxParams,
+  SignTransferTxResult,
+  SignContractCreationTxParams,
+  SignContractCreationTxResult,
+  SignScriptTxParams,
+  SignScriptTxResult,
+  SignUnsignedTxParams,
+  SignUnsignedTxResult,
+  SignHexStringParams,
+  SignHexStringResult,
+  SignMessageParams,
+  SignMessageResult,
+} from "alephium-web3";
 
 // Note:
 // 1. the wallet client could potentially submit the signed transaction.
@@ -19,8 +34,11 @@ export const signerMethods = [
   "alph_signContractCreationTx",
   "alph_signScriptTx",
   "alph_signUnsignedTx",
+  "alph_signHexString",
   "alph_signMessage",
 ];
+type SignerMethodsTuple = typeof signerMethods;
+type SignerMethods = SignerMethodsTuple[number];
 export interface Account {
   address: string;
   pubkey: string;
@@ -33,18 +51,8 @@ export interface SignResult {
   txId: string;
   signature: string;
 }
-export type SignTransferTxParams = node.BuildTransaction;
-export type SignTransferTxResult = SignResult;
-export type SignContractCreationTxParams = node.BuildContractDeployScriptTx;
-export type SignContractCreationTxResult = SignResult;
-export type SignScriptTxParams = node.BuildScriptTx;
-export type SignScriptTxResult = SignResult;
-export type SignUnsignedTxParams = { unsignedTx: string };
-export type SignUnsignedTxResult = SignResult;
-export type SignMessageParams = { message: string };
-export type SignMessageResult = { signature: string };
 
-type SignerMethodsTable = {
+interface SignerMethodsTable extends Record<SignerMethods, { params: any; result: any }> {
   alph_getAccounts: {
     params: GetAccountsParams;
     result: GetAccountsResult;
@@ -65,12 +73,15 @@ type SignerMethodsTable = {
     params: SignUnsignedTxParams;
     result: SignUnsignedTxResult;
   };
+  alph_signHexString: {
+    params: SignHexStringParams;
+    result: SignHexStringResult;
+  };
   alph_signMessage: {
     params: SignMessageParams;
     result: SignMessageResult;
   };
-};
-type SignerMethods = keyof SignerMethodsTable;
+}
 export type MethodParams<T extends SignerMethods> = SignerMethodsTable[T]["params"];
 export type MethodResult<T extends SignerMethods> = SignerMethodsTable[T]["result"];
 
@@ -103,7 +114,7 @@ export interface AlephiumProviderOptions {
   client?: SignerConnectionClientOpts;
 }
 
-class AlephiumProvider {
+class AlephiumProvider implements SignerProvider {
   public events: any = new EventEmitter();
 
   private rpc: AlephiumRpcConfig | undefined;
@@ -135,7 +146,7 @@ class AlephiumProvider {
     }
     if (this.methods.includes(args.method)) {
       return this.signer.request(args, {
-        chain: AlephiumProvider.formatChain(this.networkId, this.chainGroup),
+        chainId: AlephiumProvider.formatChain(this.networkId, this.chainGroup),
       });
     }
     return Promise.reject(`Invalid method was passed ${args.method}`);
@@ -204,6 +215,10 @@ class AlephiumProvider {
 
   public async signUnsignedTx(params: SignUnsignedTxParams): Promise<SignUnsignedTxResult> {
     return this.typedRequest("alph_signUnsignedTx", params);
+  }
+
+  public async signHexString(params: SignHexStringParams): Promise<SignHexStringResult> {
+    return this.typedRequest("alph_signHexString", params);
   }
 
   public async signMessage(params: SignMessageParams): Promise<SignMessageResult> {

@@ -12,7 +12,14 @@ import {
 
 import AlephiumProvider, { Account } from "../src/index";
 import { WalletClient } from "./shared";
-import { groupOfAddress, CliqueClient, NodeSigner, PrivateKeySigner } from "alephium-web3";
+import {
+  groupOfAddress,
+  CliqueClient,
+  NodeSigner,
+  PrivateKeySigner,
+  convertHttpResponse,
+} from "alephium-web3";
+import { Balance } from "alephium-web3/api/alephium";
 
 const NETWORK_ID = 4;
 const CHAIN_GROUP = 2;
@@ -20,12 +27,15 @@ const PORT = 22973;
 const RPC_URL = `http://127.0.0.1:${PORT}`;
 
 const cliqueClient = new CliqueClient({ baseUrl: RPC_URL });
-const signerA = PrivateKeySigner.createRandom(cliqueClient);
+const signerA = new PrivateKeySigner(
+  cliqueClient,
+  "0c493c4969b89003f964401752f29af896d0aa82d751d23abc1ee59bfe85f3ec",
+);
 const signerB = PrivateKeySigner.createRandom(cliqueClient);
 const signerC = PrivateKeySigner.createRandom(cliqueClient);
 const ACCOUNTS = {
   a: {
-    address: signerA.address,
+    address: "12LgGdbjE6EtnTKw5gdBwV2RRXuXPtzYM7SDZ45YJTRht",
     privateKey: signerA.privateKey,
     group: signerA.group,
   },
@@ -40,6 +50,7 @@ const ACCOUNTS = {
     group: signerC.group,
   },
 };
+const ONE_ALPH = "1000000000000000000";
 
 const TEST_RELAY_URL = process.env.TEST_RELAY_URL
   ? process.env.TEST_RELAY_URL
@@ -79,6 +90,7 @@ const TEST_WALLET_CLIENT_OPTS = {
   privateKey: ACCOUNTS.a.privateKey,
   relayUrl: TEST_RELAY_URL,
   metadata: TEST_WALLET_METADATA,
+  submitTx: true,
 };
 
 const TEST_ETH_TRANSFER = {
@@ -90,6 +102,8 @@ const TEST_ETH_TRANSFER = {
 
 describe("AlephiumProvider", function() {
   this.timeout(30_000);
+  cliqueClient.init(false);
+
   let provider: AlephiumProvider;
   let walletClient: WalletClient;
   let walletAddress: string;
@@ -186,9 +200,6 @@ describe("AlephiumProvider", function() {
         .join()}`,
     );
   });
-  function delay(ms: number) {
-    return new Promise(resolve => setTimeout(resolve, ms));
-  }
   it("accountsChanged", async () => {
     console.log(
       `======= ACCountsCHANGED: ${provider.accounts
@@ -227,7 +238,6 @@ describe("AlephiumProvider", function() {
         });
       }),
     ]);
-    // await walletClient.changeAccount(ACCOUNTS.c.privateKey);
     // change back to account a
     await Promise.all([
       new Promise<void>(async (resolve, reject) => {
@@ -250,19 +260,28 @@ describe("AlephiumProvider", function() {
         });
       }),
     ]);
-    // await walletClient.changeAccount(ACCOUNTS.a.privateKey);
-    // delay(4000);
-    // console.log(`== result: ${JSON.stringify(changes)}`);
-    // // state update
-    // if (ACCOUNTS.a.group === ACCOUNTS.c.group) {
-    //   expect(changes.map(c => c[0].address)).to.eql([ACCOUNTS.c.address, ACCOUNTS.a.address]);
-    // } else {
-    //   expect(changes[0]).to.eql([]);
-    //   expect(changes[1][0].address).to.eql(ACCOUNTS.a.address);
-    //   expect(changes[1].length).to.eql(1);
-    //   expect(changes.length).to.eql(2);
-    // }
   });
+
+  it("should sign", async () => {
+    const accounts = await provider.getAccounts();
+    expect(!!accounts).to.be.true;
+    expect(accounts[0].address).to.eql(ACCOUNTS.a.address);
+
+    const balance0 = await cliqueClient.getBalance(ACCOUNTS.a.address);
+    console.log(balance0);
+    expect(balance0.utxoNum).to.eql(1);
+
+    expect(walletClient.submitTx).to.be.true;
+
+    await provider.signTransferTx({
+      fromPublicKey: signerA.publicKey,
+      destinations: [{ address: ACCOUNTS.b.address, alphAmount: ONE_ALPH }],
+    });
+    const balance1 = await cliqueClient.getBalance(ACCOUNTS.a.address);
+    console.log(balance1);
+    expect(balance1.balance < balance0.balance).to.be.true;
+  });
+
   // describe("Web3", () => {
   //   let web3: Web3;
   //   before(async () => {

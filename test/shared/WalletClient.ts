@@ -3,18 +3,21 @@ import { ClientOptions, IClient, SessionTypes } from "@walletconnect/types";
 import { ERROR } from "@walletconnect/utils";
 import { SIGNER_EVENTS } from "@walletconnect/signer-connection";
 import { formatJsonRpcError, formatJsonRpcResult } from "@walletconnect/jsonrpc-utils";
-import { convertHttpResponse, CliqueClient, Signer, PrivateKeySigner } from "alephium-web3";
-
-import AlephiumProvider, {
-  Account,
+import {
+  convertHttpResponse,
+  CliqueClient,
+  PrivateKeySigner,
+  SignUnsignedTxResult,
+  SignHexStringParams,
   SignContractCreationTxParams,
   SignTransferTxParams,
-  SignResult,
   SignUnsignedTxParams,
   SignScriptTxParams,
   SignMessageParams,
   SignMessageResult,
-} from "../../src";
+} from "alephium-web3";
+
+import AlephiumProvider, { Account, SignResult } from "../../src";
 
 export interface WalletClientOpts {
   privateKey: string;
@@ -28,7 +31,7 @@ export type WalletClientAsyncOpts = WalletClientOpts & ClientOptions;
 export class WalletClient {
   public provider: AlephiumProvider;
   public cliqueClient: CliqueClient;
-  public signer: Signer;
+  public signer: PrivateKeySigner;
   public networkId: number;
   public rpcUrl: string;
   public submitTx: boolean;
@@ -120,7 +123,7 @@ export class WalletClient {
     await this.client.notify({ topic: this.topic, notification });
   }
 
-  private getWallet(cliqueClient: CliqueClient, privateKey?: string): Signer {
+  private getWallet(cliqueClient: CliqueClient, privateKey?: string): PrivateKeySigner {
     const wallet =
       typeof privateKey !== "undefined"
         ? new PrivateKeySigner(cliqueClient, privateKey)
@@ -219,7 +222,8 @@ export class WalletClient {
           if (typeof chain === "undefined") {
             throw new Error("Missing target chain");
           }
-          const [_, networkId, group] = chain.split(":");
+          const [networkId, group] = AlephiumProvider.parseChain(chain);
+
           // reject if unmatched chain
           if (Number(networkId) !== this.networkId || Number(group) != this.group) {
             throw new Error(
@@ -231,21 +235,32 @@ export class WalletClient {
 
           switch (request.method) {
             case "alph_signTransferTx":
-              result = await this.handleSignTransferTx((request as any) as SignTransferTxParams);
+              result = await this.signer.signTransferTx(
+                (request.params as any) as SignTransferTxParams,
+              );
               break;
             case "alph_signContractCreationTx":
-              result = await this.handleSignContractCreationTx(
-                (request as any) as SignContractCreationTxParams,
+              result = await this.signer.signContractCreationTx(
+                (request.params as any) as SignContractCreationTxParams,
               );
               break;
             case "alph_signScriptTx":
-              result = await this.handleSignScriptTx((request as any) as SignScriptTxParams);
+              result = await this.signer.signScriptTx(
+                (request.params as any) as SignScriptTxParams,
+              );
               break;
             case "alph_signUnsignedTx":
-              result = await this.handleSignUnsignedTx((request as any) as SignUnsignedTxParams);
+              result = await this.signer.signUnsignedTx(
+                (request.params as any) as SignUnsignedTxResult,
+              );
+              break;
+            case "alph_signHexString":
+              result = await this.signer.signHexString(
+                (request.params as any) as SignHexStringParams,
+              );
               break;
             case "alph_signMessage":
-              result = await this.handleSignMessage((request as any) as SignMessageParams);
+              result = await this.signer.signMessage((request.params as any) as SignMessageParams);
               break;
             default:
               throw new Error(`Method not supported: ${request.method}`);
@@ -265,58 +280,5 @@ export class WalletClient {
         }
       },
     );
-  }
-
-  async handleSignTransferTx(request: SignTransferTxParams): Promise<SignResult> {
-    const response = convertHttpResponse(
-      await this.cliqueClient.transactions.postTransactionsBuild(request),
-    );
-    return this.handleSign(response);
-  }
-
-  async handleSignContractCreationTx(request: SignContractCreationTxParams): Promise<SignResult> {
-    const response = convertHttpResponse(
-      await this.cliqueClient.contracts.postContractsUnsignedTxBuildContract(request),
-    );
-    return this.handleSign(response);
-  }
-
-  async handleSignScriptTx(request: SignScriptTxParams): Promise<SignResult> {
-    const response = convertHttpResponse(
-      await this.cliqueClient.contracts.postContractsUnsignedTxBuildScript(request),
-    );
-    return this.handleSign(response);
-  }
-
-  async handleSignUnsignedTx(request: SignUnsignedTxParams): Promise<SignResult> {
-    const data = { unsignedTx: request.unsignedTx };
-    // in general, wallet should show the decoded information to user for confirmation
-    const decoded = convertHttpResponse(
-      await this.cliqueClient.transactions.postTransactionsDecodeUnsignedTx(data),
-    );
-    return this.handleSign({ unsignedTx: request.unsignedTx, txId: decoded.txId });
-  }
-
-  async handleSign(response: { unsignedTx: string; txId: string }): Promise<SignResult> {
-    // sign the tx
-    const signature = await this.signer.sign(response.txId);
-    // submit the tx if required
-    if (this.submitTx) {
-      await this.cliqueClient.transactions.postTransactionsSubmit({
-        unsignedTx: response.unsignedTx,
-        signature: signature,
-      });
-    }
-    // return the signature back to the provider
-    return {
-      unsignedTx: response.unsignedTx,
-      txId: response.txId,
-      signature: signature,
-    };
-  }
-
-  async handleSignMessage(request: SignMessageParams): Promise<SignMessageResult> {
-    const signature = await this.signer.sign(request.message);
-    return { signature: signature };
   }
 }
