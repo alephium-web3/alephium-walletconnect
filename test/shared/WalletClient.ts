@@ -84,10 +84,8 @@ export class WalletClient {
   }
 
   public async disconnect() {
-    console.log(`=============== DISCONNECT 0`);
     if (!this.client) return;
     if (!this.topic) return;
-    console.log(`=============== DISCONNECT 1`);
     await this.client.disconnect({ topic: this.topic, reason: ERROR.USER_DISCONNECTED.format() });
   }
 
@@ -131,7 +129,6 @@ export class WalletClient {
 
   private getSessionState(): { accounts: string[] } {
     if (typeof this.permittedChains === "undefined") {
-      console.log("=====================");
       throw new Error("Permitted chains are not set");
     }
     const groupMatched = this.permittedChains.find(

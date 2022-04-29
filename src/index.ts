@@ -218,7 +218,6 @@ class WalletConnectProvider implements SignerProvider {
 
   private registerEventListeners() {
     this.signer.on("connect", async () => {
-      console.log(`============== CONNECT`);
       const chains = (this.signer.connection as SignerConnection).chains;
       if (chains && chains.length) this.setChain(chains);
       const accounts = (this.signer.connection as SignerConnection).accounts;
@@ -233,17 +232,14 @@ class WalletConnectProvider implements SignerProvider {
       if (!session.permissions.blockchain.chains.includes(chain)) {
         this.setChain(session.permissions.blockchain.chains);
       }
-      console.log(`===== event update: ${session.state.accounts}`);
       this.setAccounts(session.state.accounts, "updated");
     });
     this.signer.connection.on(
       SIGNER_EVENTS.notification,
       (notification: SessionTypes.Notification) => {
         if (notification.type === providerEvents.changed.accounts) {
-          console.log(`==== noti account ${JSON.stringify(notification.data)}`);
           this.setAccounts(notification.data, "noti accounts");
         } else if (notification.type === providerEvents.changed.chain) {
-          console.log(`==== noti chain ${JSON.stringify(notification.data)}`);
           this.networkId = notification.data;
           this.events.emit(providerEvents.changed.chain, this.networkId);
         } else {
@@ -332,11 +328,6 @@ class WalletConnectProvider implements SignerProvider {
 
     const newAccounts = parsedAccounts.filter(account => account.group === this.chainGroup);
     if (!this.sameAccounts(newAccounts, this.accounts)) {
-      console.log(
-        `===== filtered: ${t} current ${this.accounts
-          .map(a => WalletConnectProvider.formatAccount(this.networkId, a))
-          .join()}, input ${accounts.join()}`,
-      );
       this.accounts = newAccounts;
       this.events.emit(providerEvents.changed.accounts, newAccounts);
     }

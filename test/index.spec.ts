@@ -114,7 +114,6 @@ describe("WalletConnectProvider", function() {
   let walletAddress: string;
   let receiverAddress: string;
   before(async () => {
-    console.log(`========= START`);
     provider = new WalletConnectProvider({
       ...TEST_PROVIDER_OPTS,
       chainGroup: groupOfAddress(ACCOUNTS.a.address),
@@ -142,15 +141,9 @@ describe("WalletConnectProvider", function() {
     // expect provider to be disconnected
     expect(walletClient.client?.session.values.length).to.eql(0);
     expect(provider.connected).to.be.false;
-    console.log(`========= END`);
   });
   it("chainChanged", async () => {
     // change to testnet
-    console.log(
-      `--------- : ${provider.accounts
-        .map(a => WalletConnectProvider.formatAccount(provider.networkId, a))
-        .join()}`,
-    );
     await Promise.all([
       new Promise<void>(async (resolve, reject) => {
         try {
@@ -173,11 +166,6 @@ describe("WalletConnectProvider", function() {
       }),
     ]);
     // change back to devnet
-    console.log(
-      `--------- : ${provider.accounts
-        .map(a => WalletConnectProvider.formatAccount(provider.networkId, a))
-        .join()}`,
-    );
     await Promise.all([
       new Promise<void>(async (resolve, reject) => {
         try {
@@ -199,21 +187,10 @@ describe("WalletConnectProvider", function() {
         });
       }),
     ]);
-    console.log(
-      `--------- : ${provider.accounts
-        .map(a => WalletConnectProvider.formatAccount(provider.networkId, a))
-        .join()}`,
-    );
   });
   it("accountsChanged", async () => {
-    console.log(
-      `======= ACCountsCHANGED: ${provider.accounts
-        .map(a => WalletConnectProvider.formatAccount(provider.networkId, a))
-        .join()}`,
-    );
     const changes: Account[][] = [];
     provider.on("accountsChanged", accounts => {
-      console.log(`==== change ${JSON.stringify(accounts)}`);
       changes.push(accounts);
     });
     // change to account c
@@ -275,7 +252,6 @@ describe("WalletConnectProvider", function() {
   async function checkBalanceDecreasing() {
     delay(500);
     const balance1 = await cliqueClient.getBalance(ACCOUNTS.a.address);
-    console.log(balance1);
     expect(balance1.utxoNum).to.eql(1);
     if (balance1.balance >= balance.balance) {
       checkBalanceDecreasing();
@@ -289,7 +265,6 @@ describe("WalletConnectProvider", function() {
     expect(accounts[0].address).to.eql(ACCOUNTS.a.address);
 
     balance = await cliqueClient.getBalance(ACCOUNTS.a.address);
-    console.log(balance);
     expect(balance.utxoNum).to.eql(1);
 
     expect(walletClient.submitTx).to.be.true;
@@ -301,30 +276,16 @@ describe("WalletConnectProvider", function() {
     await checkBalanceDecreasing();
 
     const greeter = await Contract.fromSource(cliqueClient, "greeter.ral");
-    console.log(greeter.compiled);
 
     const greeterParams = await greeter.paramsForDeployment(signerA, { initialFields: [1] });
     const greeterResult = await signerA.signContractCreationTx(greeterParams);
-    console.log(greeterResult);
-    console.log(
-      `===== state: ${JSON.stringify(
-        (
-          await signerA.client.contracts.getContractsAddressState(greeterResult.contractAddress, {
-            group: signerA.group,
-          })
-        ).data,
-      )}`,
-    );
     await checkBalanceDecreasing();
 
     const main = await Script.fromSource(cliqueClient, "greeter_main.ral");
-    console.log(main.compiled);
-    console.log(`===================`);
     const mainParams = await main.paramsForDeployment(signerA, {
       templateVariables: { greeterContractId: greeterResult.contractId },
     });
     const mainResult = await signerA.signScriptTx(mainParams);
-    console.log(mainResult.txId);
     await checkBalanceDecreasing();
 
     const hexString = "48656c6c6f20416c65706869756d21";
