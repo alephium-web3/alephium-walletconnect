@@ -275,7 +275,7 @@ describe("WalletConnectProvider", function() {
     expect(walletClient.submitTx).to.be.true;
 
     await provider.signTransferTx({
-      fromPublicKey: signerA.publicKey,
+      signerAddress: signerA.address,
       destinations: [{ address: ACCOUNTS.b.address, alphAmount: ONE_ALPH }],
     });
     const balance1 = await cliqueClient.getBalance(ACCOUNTS.a.address);
