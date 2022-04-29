@@ -19,6 +19,8 @@ import {
   NodeSigner,
   PrivateKeySigner,
   convertHttpResponse,
+  Contract,
+  Script,
 } from "alephium-web3";
 import { Balance } from "alephium-web3/api/alephium";
 
@@ -263,14 +265,30 @@ describe("WalletConnectProvider", function() {
     ]);
   });
 
+  function delay(ms: number) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  let balance: Balance;
+  async function checkBalanceDecreasing() {
+    delay(500);
+    const balance1 = await cliqueClient.getBalance(ACCOUNTS.a.address);
+    console.log(balance1);
+    expect(balance1.utxoNum).to.eql(1);
+    if (balance1.balance >= balance.balance) {
+      checkBalanceDecreasing();
+    }
+    balance = balance1;
+  }
+
   it("should sign", async () => {
     const accounts = await provider.getAccounts();
     expect(!!accounts).to.be.true;
     expect(accounts[0].address).to.eql(ACCOUNTS.a.address);
 
-    const balance0 = await cliqueClient.getBalance(ACCOUNTS.a.address);
-    console.log(balance0);
-    expect(balance0.utxoNum).to.eql(1);
+    balance = await cliqueClient.getBalance(ACCOUNTS.a.address);
+    console.log(balance);
+    expect(balance.utxoNum).to.eql(1);
 
     expect(walletClient.submitTx).to.be.true;
 
@@ -278,9 +296,34 @@ describe("WalletConnectProvider", function() {
       signerAddress: signerA.address,
       destinations: [{ address: ACCOUNTS.b.address, alphAmount: ONE_ALPH }],
     });
-    const balance1 = await cliqueClient.getBalance(ACCOUNTS.a.address);
-    console.log(balance1);
-    expect(balance1.balance < balance0.balance).to.be.true;
+    await checkBalanceDecreasing();
+
+    const greeter = await Contract.fromSource(cliqueClient, "greeter.ral");
+    console.log(greeter.compiled);
+
+    const greeterParams = await greeter.paramsForDeployment(signerA, { initialFields: [1] });
+    const greeterResult = await signerA.signContractCreationTx(greeterParams);
+    console.log(greeterResult);
+    console.log(
+      `===== state: ${
+        JSON.stringify((
+          await signerA.client.contracts.getContractsAddressState(greeterResult.contractAddress, {
+            group: signerA.group,
+          })
+        ).data)
+      }`,
+    );
+    await checkBalanceDecreasing();
+
+    const main = await Script.fromSource(cliqueClient, "greeter_main.ral");
+    console.log(main.compiled);
+    console.log(`===================`);
+    const mainParams = await main.paramsForDeployment(signerA, {
+      templateVariables: { greeterContractId: greeterResult.contractId },
+    });
+    const mainResult = await signerA.signScriptTx(mainParams);
+    console.log(mainResult.txId);
+    await checkBalanceDecreasing();
   });
 
   // describe("Web3", () => {
