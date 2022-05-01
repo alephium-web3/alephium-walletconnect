@@ -24,6 +24,7 @@ import {
   SignHexStringResult,
   SignMessageParams,
   SignMessageResult,
+  groupOfAddress,
 } from "alephium-web3";
 
 // Note:
@@ -106,8 +107,6 @@ export interface WalletConnectProviderOptions {
 class WalletConnectProvider implements SignerProvider {
   public events: any = new EventEmitter();
 
-  private rpc: AlephiumRpcConfig | undefined;
-
   public static namespace = "alephium";
   public networkId: number;
   public chainGroup: number;
@@ -116,15 +115,16 @@ class WalletConnectProvider implements SignerProvider {
   public accounts: Account[] = [];
 
   public signer: JsonRpcProvider;
-  public http: JsonRpcProvider | undefined;
+
+  get permittedChain(): string {
+    return formatChain(this.networkId, this.chainGroup);
+  }
 
   constructor(opts: WalletConnectProviderOptions) {
-    this.rpc = opts.rpc;
     this.networkId = opts.networkId;
     this.chainGroup = opts.chainGroup;
     this.methods = opts.methods ? [...opts.methods, ...this.methods] : this.methods;
     this.signer = this.setSignerProvider(opts.client);
-    this.http = this.setHttpProvider(this.networkId);
     this.registerEventListeners();
   }
 
@@ -134,8 +134,18 @@ class WalletConnectProvider implements SignerProvider {
       return this.accounts as any;
     }
     if (this.methods.includes(args.method)) {
+      const signerAddress = args.params?.signerAddress;
+      if (typeof signerAddress === "undefined") {
+        throw new Error("Cannot request without signerAddress");
+      }
+      const signerAccount = this.accounts.find(
+        account => account.address === args.params.signerAddress,
+      );
+      if (typeof signerAccount === "undefined") {
+        throw new Error(`Unknown signer address ${args.params.signerAddress}`);
+      }
       return this.signer.request(args, {
-        chainId: WalletConnectProvider.formatChain(this.networkId, this.chainGroup),
+        chainId: formatChain(this.networkId, signerAccount.group),
       });
     }
     return Promise.reject(`Invalid method was passed ${args.method}`);
@@ -228,7 +238,7 @@ class WalletConnectProvider implements SignerProvider {
       this.setAccounts(session.state.accounts, "created");
     });
     this.signer.connection.on(SIGNER_EVENTS.updated, (session: SessionTypes.Settled) => {
-      const chain = WalletConnectProvider.formatChain(this.networkId, this.chainGroup);
+      const chain = formatChain(this.networkId, this.chainGroup);
       if (!session.permissions.blockchain.chains.includes(chain)) {
         this.setChain(session.permissions.blockchain.chains);
       }
@@ -250,60 +260,38 @@ class WalletConnectProvider implements SignerProvider {
     this.signer.on("disconnect", () => {
       this.events.emit("disconnect");
     });
-    this.events.on(providerEvents.changed.chain, networkId => this.setHttpProvider(networkId));
   }
 
   private setSignerProvider(client?: SignerConnectionClientOpts) {
     const connection = new SignerConnection({
-      chains: [WalletConnectProvider.formatChain(this.networkId, this.chainGroup)],
+      chains: [formatChain(this.networkId, this.chainGroup)],
       methods: this.methods,
       client,
     });
     return new JsonRpcProvider(connection);
   }
 
-  private setHttpProvider(networkId: number): JsonRpcProvider | undefined {
-    const rpcUrl = getRpcUrl(networkId, this.rpc);
-    if (typeof rpcUrl === "undefined") return undefined;
-    const http = new JsonRpcProvider(new HttpConnection(rpcUrl));
-    return http;
-  }
-
-  private isCompatibleChain(chain: string): boolean {
-    return (
-      chain.startsWith(`${WalletConnectProvider.namespace}:`) &&
-      WalletConnectProvider.parseChain(chain)[1] === this.chainGroup
-    );
-  }
-
-  static formatChain(networkId: number, chainGroup: number): string {
-    return `${WalletConnectProvider.namespace}:${networkId}-${chainGroup}`;
-  }
-
-  static parseChain(chainString: string): [number, number] {
-    const [_ /* namespace */, networkId, chainGroup] = chainString.replace(/-/g, ":").split(":");
-    return [Number(networkId), Number(chainGroup)];
-  }
-
-  private setChain(chains: string[]) {
-    const compatible = chains.filter(x => this.isCompatibleChain(x));
-    if (compatible.length) {
-      [this.networkId, this.chainGroup] = WalletConnectProvider.parseChain(compatible[0]);
-      this.events.emit(providerEvents.changed.chain, this.networkId);
+  private sameChains(chains0: string[], chains1?: string[]): boolean {
+    if (typeof chains1 === "undefined") {
+      return false;
+    } else {
+      return chains0.join() === chains1.join();
     }
   }
 
-  static formatAccount(networkId: number, account: Account): string {
-    return `${WalletConnectProvider.namespace}:${networkId}-${account.group}:${account.address}-${account.pubkey}`;
-  }
+  private lastSetChains?: string[];
+  private setChain(chains: string[]) {
+    if (this.sameChains(chains, this.lastSetChains)) {
+      return;
+    } else {
+      this.lastSetChains = chains;
+    }
 
-  static parseAccount(account: string): Account {
-    const [namespace, networkId, group, address, pubkey] = account.replace(/-/g, ":").split(":");
-    return {
-      address: address,
-      pubkey: pubkey,
-      group: Number(group),
-    };
+    const compatible = chains.filter(x => isCompatibleChain(x));
+    if (compatible.length) {
+      [this.networkId, this.chainGroup] = parseChain(compatible[0]);
+      this.events.emit(providerEvents.changed.chain, this.networkId);
+    }
   }
 
   private sameAccounts(account0: Account[], account1?: Account[]): boolean {
@@ -311,27 +299,67 @@ class WalletConnectProvider implements SignerProvider {
       return false;
     } else {
       return (
-        account0.map(a => WalletConnectProvider.formatAccount(this.networkId, a)).join() ===
-        account1.map(a => WalletConnectProvider.formatAccount(this.networkId, a)).join()
+        account0.map(a => formatAccount(this.permittedChain, a)).join() ===
+        account1.map(a => formatAccount(this.permittedChain, a)).join()
       );
     }
   }
 
   private lastSetAccounts?: Account[];
   private setAccounts(accounts: string[], t: string) {
-    const parsedAccounts = accounts.map(WalletConnectProvider.parseAccount);
+    const parsedAccounts = accounts.map(parseAccount);
     if (this.sameAccounts(parsedAccounts, this.lastSetAccounts)) {
       return;
     } else {
       this.lastSetAccounts = parsedAccounts;
     }
 
-    const newAccounts = parsedAccounts.filter(account => account.group === this.chainGroup);
+    const newAccounts = parsedAccounts.filter(account =>
+      isCompatibleChainGroup(this.chainGroup, account.group),
+    );
     if (!this.sameAccounts(newAccounts, this.accounts)) {
       this.accounts = newAccounts;
       this.events.emit(providerEvents.changed.accounts, newAccounts);
     }
   }
+}
+
+export function isCompatibleChain(chain: string): boolean {
+  return chain.startsWith(`${WalletConnectProvider.namespace}:`);
+}
+
+export function formatChain(networkId: number, chainGroup: number): string {
+  return `${WalletConnectProvider.namespace}:${networkId}/${chainGroup}`;
+}
+
+export function isCompatibleChainGroup(expectedChainGroup: number, chainGroup: number): boolean {
+  return expectedChainGroup === -1 || expectedChainGroup === chainGroup;
+}
+
+export function upgradeChainGroup(permittedChainGroup: number, chainGroup: number): number {
+  if (permittedChainGroup === -1) {
+    return -1;
+  } else {
+    return chainGroup;
+  }
+}
+
+export function parseChain(chainString: string): [number, number] {
+  const [_ /* namespace */, networkId, chainGroup] = chainString.replace(/\//g, ":").split(":");
+  return [Number(networkId), Number(chainGroup)];
+}
+
+export function formatAccount(permittedChain: string, account: Account): string {
+  return `${permittedChain}:${account.address}+${account.pubkey}`;
+}
+
+export function parseAccount(account: string): Account {
+  const [namespace, permittedChain, address, pubkey] = account.replace(/\+/g, ":").split(":");
+  return {
+    address: address,
+    pubkey: pubkey,
+    group: groupOfAddress(address),
+  };
 }
 
 export default WalletConnectProvider;

@@ -15,7 +15,14 @@ import {
   Account,
 } from "alephium-web3";
 
-import AlephiumProvider from "../../src";
+import WalletConnectProvider, {
+  isCompatibleChainGroup,
+  isCompatibleChain,
+  parseChain,
+  parseAccount,
+  formatChain,
+  formatAccount,
+} from "../../src";
 
 export interface WalletClientOpts {
   privateKey: string;
@@ -27,7 +34,7 @@ export interface WalletClientOpts {
 export type WalletClientAsyncOpts = WalletClientOpts & ClientOptions;
 
 export class WalletClient {
-  public provider: AlephiumProvider;
+  public provider: WalletConnectProvider;
   public cliqueClient: CliqueClient;
   public signer: PrivateKeySigner;
   public networkId: number;
@@ -37,10 +44,21 @@ export class WalletClient {
   public client?: IClient;
   public topic?: string;
 
-  public permittedChains?: string[];
+  public permittedNetworkId?: number;
+  public permittedChainGroup?: number;
+
+  get permittedChain(): string {
+    if (
+      typeof this.permittedNetworkId === "undefined" ||
+      typeof this.permittedChainGroup === "undefined"
+    ) {
+      throw new Error("Permitted chain is not set");
+    }
+    return formatChain(this.permittedNetworkId, this.permittedChainGroup);
+  }
 
   static async init(
-    provider: AlephiumProvider,
+    provider: WalletConnectProvider,
     opts: Partial<WalletClientAsyncOpts>,
   ): Promise<WalletClient> {
     const walletClient = new WalletClient(provider, opts);
@@ -64,7 +82,7 @@ export class WalletClient {
     return [this.account];
   }
 
-  constructor(provider: AlephiumProvider, opts: Partial<WalletClientOpts>) {
+  constructor(provider: WalletConnectProvider, opts: Partial<WalletClientOpts>) {
     this.provider = provider;
     this.networkId = opts?.networkId || 4;
     this.rpcUrl = opts?.rpcUrl || "http://127.0.0.1:22973";
@@ -107,7 +125,7 @@ export class WalletClient {
     if (typeof this.topic === "undefined") return;
     const notification = {
       type: "accountsChanged",
-      data: [AlephiumProvider.formatAccount(this.networkId, this.account)],
+      data: [formatAccount(this.permittedChain, this.account)],
     };
     await this.client.notify({ topic: this.topic, notification });
   }
@@ -128,14 +146,15 @@ export class WalletClient {
   }
 
   private getSessionState(): { accounts: string[] } {
-    if (typeof this.permittedChains === "undefined") {
+    if (
+      typeof this.permittedNetworkId === "undefined" ||
+      typeof this.permittedChainGroup === "undefined"
+    ) {
       throw new Error("Permitted chains are not set");
     }
-    const groupMatched = this.permittedChains.find(
-      chain => AlephiumProvider.parseChain(chain)[1] == this.signer.group,
-    );
+    const groupMatched = isCompatibleChainGroup(this.permittedChainGroup, this.signer.group);
     if (groupMatched) {
-      return { accounts: [AlephiumProvider.formatAccount(this.networkId, this.account)] };
+      return { accounts: [formatAccount(this.permittedChain, this.account)] };
     } else {
       return { accounts: [] };
     }
@@ -144,17 +163,21 @@ export class WalletClient {
   private async updateSession() {
     if (typeof this.client === "undefined") return;
     if (typeof this.topic === "undefined") return;
-    if (typeof this.permittedChains === "undefined") return;
+    if (typeof this.permittedNetworkId === "undefined") return;
+    if (typeof this.permittedChainGroup === "undefined") return;
     await this.client.update({ topic: this.topic, state: this.getSessionState() });
   }
 
   private async upgradeSession() {
     if (typeof this.client === "undefined") return;
     if (typeof this.topic === "undefined") return;
+    if (typeof this.permittedChainGroup === "undefined") return;
     await this.client.upgrade({
       topic: this.topic,
       permissions: {
-        blockchain: { chains: [AlephiumProvider.formatChain(this.networkId, this.signer.group)] },
+        blockchain: {
+          chains: [formatChain(this.networkId, this.permittedChainGroup)],
+        },
       },
     });
     await this.updateAccounts();
@@ -193,7 +216,11 @@ export class WalletClient {
       if (typeof this.client === "undefined") {
         throw new Error("Client not initialized");
       }
-      this.permittedChains = proposal.permissions.blockchain.chains;
+      const permittedChain = proposal.permissions.blockchain.chains[0];
+      if (typeof permittedChain === "undefined") {
+        throw new Error("No chain is permitted");
+      }
+      [this.permittedNetworkId, this.permittedChainGroup] = parseChain(permittedChain);
       const response = { state: this.getSessionState() };
       const session = await this.client.approve({ proposal, response });
       this.topic = session.topic;
@@ -207,22 +234,20 @@ export class WalletClient {
           throw new Error("Client not initialized");
         }
         const { topic, chainId, request } = requestEvent;
-        const chain = chainId; // just a rename
 
         // ignore if unmatched topic
         if (topic !== this.topic) return;
 
         try {
           // reject if no present target chain
-          if (typeof chain === "undefined") {
+          if (typeof chainId === "undefined") {
             throw new Error("Missing target chain");
           }
-          const [networkId, group] = AlephiumProvider.parseChain(chain);
 
           // reject if unmatched chain
-          if (Number(networkId) !== this.networkId || Number(group) != this.group) {
+          if (this.permittedChain != chainId) {
             throw new Error(
-              `Target chain (${networkId}, ${group}) does not match active chain (${this.networkId}, ${this.group})`,
+              `Target chain (${chainId}) does not match active chain (${this.permittedChain})`,
             );
           }
 

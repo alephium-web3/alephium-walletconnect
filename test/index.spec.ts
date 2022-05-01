@@ -10,7 +10,7 @@ import {
   JsonRpcResponse,
 } from "@walletconnect/jsonrpc-utils";
 
-import WalletConnectProvider from "../src/index";
+import WalletConnectProvider, { formatAccount } from "../src/index";
 import { WalletClient } from "./shared";
 import {
   groupOfAddress,
@@ -105,14 +105,13 @@ const TEST_ETH_TRANSFER = {
   data: "0x",
 };
 
-describe("WalletConnectProvider", function() {
+describe("WalletConnectProvider with single chainGroup", function() {
   this.timeout(30_000);
   cliqueClient.init(false);
 
   let provider: WalletConnectProvider;
   let walletClient: WalletClient;
   let walletAddress: string;
-  let receiverAddress: string;
   before(async () => {
     provider = new WalletConnectProvider({
       ...TEST_PROVIDER_OPTS,
@@ -120,7 +119,6 @@ describe("WalletConnectProvider", function() {
     });
     walletClient = await WalletClient.init(provider, TEST_WALLET_CLIENT_OPTS);
     walletAddress = walletClient.signer.address;
-    receiverAddress = ACCOUNTS.b.address;
     expect(walletAddress).to.eql(ACCOUNTS.a.address);
     const providerAccounts = await provider.connect();
     expect(providerAccounts.map(a => a.address)).to.eql([walletAddress]);
@@ -145,15 +143,6 @@ describe("WalletConnectProvider", function() {
   it("chainChanged", async () => {
     // change to testnet
     await Promise.all([
-      new Promise<void>(async (resolve, reject) => {
-        try {
-          await walletClient.changeChain(1, "https://testnet-wallet.alephium.org");
-          resolve();
-        } catch (e) {
-          reject(e);
-        }
-      }),
-
       new Promise<void>((resolve, reject) => {
         provider.on("chainChanged", chainId => {
           try {
@@ -164,18 +153,18 @@ describe("WalletConnectProvider", function() {
           }
         });
       }),
-    ]);
-    // change back to devnet
-    await Promise.all([
+
       new Promise<void>(async (resolve, reject) => {
         try {
-          await walletClient.changeChain(NETWORK_ID, RPC_URL);
+          await walletClient.changeChain(1, "https://testnet-wallet.alephium.org");
           resolve();
         } catch (e) {
           reject(e);
         }
       }),
-
+    ]);
+    // change back to devnet
+    await Promise.all([
       new Promise<void>((resolve, reject) => {
         provider.on("chainChanged", chain => {
           try {
@@ -186,6 +175,15 @@ describe("WalletConnectProvider", function() {
           }
         });
       }),
+
+      new Promise<void>(async (resolve, reject) => {
+        try {
+          await walletClient.changeChain(NETWORK_ID, RPC_URL);
+          resolve();
+        } catch (e) {
+          reject(e);
+        }
+      }),
     ]);
   });
   it("accountsChanged", async () => {
@@ -195,16 +193,6 @@ describe("WalletConnectProvider", function() {
     });
     // change to account c
     await Promise.all([
-      new Promise<void>(async (resolve, reject) => {
-        try {
-          await walletClient.changeAccount(ACCOUNTS.c.privateKey);
-
-          resolve();
-        } catch (e) {
-          reject(e);
-        }
-      }),
-
       new Promise<void>((resolve, reject) => {
         provider.on("accountsChanged", accounts => {
           try {
@@ -219,18 +207,19 @@ describe("WalletConnectProvider", function() {
           }
         });
       }),
-    ]);
-    // change back to account a
-    await Promise.all([
+
       new Promise<void>(async (resolve, reject) => {
         try {
-          await walletClient.changeAccount(ACCOUNTS.a.privateKey);
+          await walletClient.changeAccount(ACCOUNTS.c.privateKey);
+
           resolve();
         } catch (e) {
           reject(e);
         }
       }),
-
+    ]);
+    // change back to account a
+    await Promise.all([
       new Promise<void>((resolve, reject) => {
         provider.on("accountsChanged", accounts => {
           try {
@@ -240,6 +229,14 @@ describe("WalletConnectProvider", function() {
             reject(e);
           }
         });
+      }),
+      new Promise<void>(async (resolve, reject) => {
+        try {
+          await walletClient.changeAccount(ACCOUNTS.a.privateKey);
+          resolve();
+        } catch (e) {
+          reject(e);
+        }
       }),
     ]);
   });
@@ -301,5 +298,138 @@ describe("WalletConnectProvider", function() {
     expect(signedMessage.signature).not.to.eql(signedHexString.signature);
     expect(verifyHexString(hexString, signerA.publicKey, signedHexString.signature)).to.be.true;
     expect(verifySignedMessage(message, signerA.publicKey, signedMessage.signature)).to.be.true;
+  });
+});
+
+describe("WalletConnectProvider with arbitrary chainGroup", function() {
+  this.timeout(30_000);
+  cliqueClient.init(false);
+
+  let provider: WalletConnectProvider;
+  let walletClient: WalletClient;
+  let walletAddress: string;
+  before(async () => {
+    const { chainGroup, ...providerOpts } = TEST_PROVIDER_OPTS;
+    provider = new WalletConnectProvider({ chainGroup: -1, ...providerOpts });
+    walletClient = await WalletClient.init(provider, TEST_WALLET_CLIENT_OPTS);
+    walletAddress = walletClient.signer.address;
+    expect(walletAddress).to.eql(ACCOUNTS.a.address);
+    const providerAccounts = await provider.connect();
+    expect(providerAccounts.map(a => a.address)).to.eql([walletAddress]);
+  });
+  after(async () => {
+    // disconnect provider
+    await Promise.all([
+      new Promise<void>(async resolve => {
+        provider.on("disconnect", () => {
+          resolve();
+        });
+      }),
+      new Promise<void>(async resolve => {
+        await walletClient.disconnect();
+        resolve();
+      }),
+    ]);
+    // expect provider to be disconnected
+    expect(walletClient.client?.session.values.length).to.eql(0);
+    expect(provider.connected).to.be.false;
+  });
+  it("chainChanged", async () => {
+    // change to testnet
+    await Promise.all([
+      new Promise<void>((resolve, reject) => {
+        provider.on("chainChanged", chainId => {
+          try {
+            expect(chainId).to.eql(1);
+            resolve();
+          } catch (e) {
+            reject(e);
+          }
+        });
+      }),
+
+      new Promise<void>(async (resolve, reject) => {
+        try {
+          await walletClient.changeChain(1, "https://testnet-wallet.alephium.org");
+          resolve();
+        } catch (e) {
+          reject(e);
+        }
+      }),
+    ]);
+    // change back to devnet
+    await Promise.all([
+      new Promise<void>((resolve, reject) => {
+        provider.on("chainChanged", chain => {
+          try {
+            expect(chain).to.eql(NETWORK_ID);
+            resolve();
+          } catch (e) {
+            reject(e);
+          }
+        });
+      }),
+
+      new Promise<void>(async (resolve, reject) => {
+        try {
+          await walletClient.changeChain(NETWORK_ID, RPC_URL);
+          resolve();
+        } catch (e) {
+          reject(e);
+        }
+      }),
+    ]);
+  });
+
+  it("accountsChanged", async () => {
+    const changes: Account[][] = [];
+    provider.on("accountsChanged", accounts => {
+      changes.push(accounts);
+    });
+    // change to account c
+    await Promise.all([
+      new Promise<void>(async (resolve, reject) => {
+        try {
+          await walletClient.changeAccount(ACCOUNTS.c.privateKey);
+
+          resolve();
+        } catch (e) {
+          reject(e);
+        }
+      }),
+
+      new Promise<void>((resolve, reject) => {
+        provider.on("accountsChanged", accounts => {
+          try {
+            expect(accounts[0].address).to.eql(ACCOUNTS.c.address);
+            resolve();
+          } catch (e) {
+            reject(e);
+          }
+        });
+      }),
+    ]);
+    // change back to account a
+    await Promise.all([
+      new Promise<void>(async (resolve, reject) => {
+        try {
+          await walletClient.changeAccount(ACCOUNTS.a.privateKey);
+          resolve();
+        } catch (e) {
+          reject(e);
+        }
+      }),
+
+      new Promise<void>((resolve, reject) => {
+        provider.on("accountsChanged", accounts => {
+          try {
+            expect(accounts[0].address).to.eql(ACCOUNTS.a.address);
+            resolve();
+          } catch (e) {
+            reject(e);
+          }
+        });
+      }),
+    ]);
   });
 });
