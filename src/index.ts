@@ -77,7 +77,7 @@ export type MethodResult<T extends SignerMethods> = SignerMethodsTable[T]["resul
 
 export const providerEvents = {
   changed: {
-    chain: "chainChanged",
+    network: "networkChanged",
     accounts: "accountsChanged",
   },
 };
@@ -231,27 +231,27 @@ class WalletConnectProvider implements SignerProvider {
       const chains = (this.signer.connection as SignerConnection).chains;
       if (chains && chains.length) this.setChain(chains);
       const accounts = (this.signer.connection as SignerConnection).accounts;
-      if (accounts && accounts.length) this.setAccounts(accounts, "connect");
+      if (accounts && accounts.length) this.setAccounts(accounts);
     });
     this.signer.connection.on(SIGNER_EVENTS.created, (session: SessionTypes.Settled) => {
       this.setChain(session.permissions.blockchain.chains);
-      this.setAccounts(session.state.accounts, "created");
+      this.setAccounts(session.state.accounts);
     });
     this.signer.connection.on(SIGNER_EVENTS.updated, (session: SessionTypes.Settled) => {
       const chain = formatChain(this.networkId, this.chainGroup);
       if (!session.permissions.blockchain.chains.includes(chain)) {
         this.setChain(session.permissions.blockchain.chains);
       }
-      this.setAccounts(session.state.accounts, "updated");
+      this.setAccounts(session.state.accounts);
     });
     this.signer.connection.on(
       SIGNER_EVENTS.notification,
       (notification: SessionTypes.Notification) => {
         if (notification.type === providerEvents.changed.accounts) {
-          this.setAccounts(notification.data, "noti accounts");
-        } else if (notification.type === providerEvents.changed.chain) {
+          this.setAccounts(notification.data);
+        } else if (notification.type === providerEvents.changed.network) {
           this.networkId = notification.data;
-          this.events.emit(providerEvents.changed.chain, this.networkId);
+          this.events.emit(providerEvents.changed.network, this.networkId);
         } else {
           this.events.emit(notification.type, notification.data);
         }
@@ -290,7 +290,7 @@ class WalletConnectProvider implements SignerProvider {
     const compatible = chains.filter(x => isCompatibleChain(x));
     if (compatible.length) {
       [this.networkId, this.chainGroup] = parseChain(compatible[0]);
-      this.events.emit(providerEvents.changed.chain, this.networkId);
+      this.events.emit(providerEvents.changed.network, this.networkId);
     }
   }
 
@@ -306,7 +306,7 @@ class WalletConnectProvider implements SignerProvider {
   }
 
   private lastSetAccounts?: Account[];
-  private setAccounts(accounts: string[], t: string) {
+  private setAccounts(accounts: string[]) {
     const parsedAccounts = accounts.map(parseAccount);
     if (this.sameAccounts(parsedAccounts, this.lastSetAccounts)) {
       return;

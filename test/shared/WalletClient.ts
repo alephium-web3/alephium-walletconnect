@@ -22,6 +22,7 @@ import WalletConnectProvider, {
   parseAccount,
   formatChain,
   formatAccount,
+  providerEvents,
 } from "../../src";
 
 export interface WalletClientOpts {
@@ -124,7 +125,7 @@ export class WalletClient {
     if (typeof this.client === "undefined") return;
     if (typeof this.topic === "undefined") return;
     const notification = {
-      type: "accountsChanged",
+      type: providerEvents.changed.accounts,
       data: [formatAccount(this.permittedChain, this.account)],
     };
     await this.client.notify({ topic: this.topic, notification });
@@ -133,7 +134,7 @@ export class WalletClient {
   private async emitChainChangedEvent() {
     if (typeof this.client === "undefined") return;
     if (typeof this.topic === "undefined") return;
-    const notification = { type: "chainChanged", data: this.networkId };
+    const notification = { type: providerEvents.changed.network, data: this.networkId };
     await this.client.notify({ topic: this.topic, notification });
   }
 

@@ -140,13 +140,14 @@ describe("WalletConnectProvider with single chainGroup", function() {
     expect(walletClient.client?.session.values.length).to.eql(0);
     expect(provider.connected).to.be.false;
   });
-  it("chainChanged", async () => {
+  it("networkChanged", async () => {
     // change to testnet
     await Promise.all([
       new Promise<void>((resolve, reject) => {
-        provider.on("chainChanged", chainId => {
+        provider.on("networkChanged", chainId => {
           try {
             expect(chainId).to.eql(1);
+            expect(provider.networkId).to.eql(1);
             resolve();
           } catch (e) {
             reject(e);
@@ -166,7 +167,7 @@ describe("WalletConnectProvider with single chainGroup", function() {
     // change back to devnet
     await Promise.all([
       new Promise<void>((resolve, reject) => {
-        provider.on("chainChanged", chain => {
+        provider.on("networkChanged", chain => {
           try {
             expect(chain).to.eql(NETWORK_ID);
             resolve();
@@ -334,11 +335,11 @@ describe("WalletConnectProvider with arbitrary chainGroup", function() {
     expect(walletClient.client?.session.values.length).to.eql(0);
     expect(provider.connected).to.be.false;
   });
-  it("chainChanged", async () => {
+  it("networkChanged", async () => {
     // change to testnet
     await Promise.all([
       new Promise<void>((resolve, reject) => {
-        provider.on("chainChanged", chainId => {
+        provider.on("networkChanged", chainId => {
           try {
             expect(chainId).to.eql(1);
             resolve();
@@ -360,7 +361,7 @@ describe("WalletConnectProvider with arbitrary chainGroup", function() {
     // change back to devnet
     await Promise.all([
       new Promise<void>((resolve, reject) => {
-        provider.on("chainChanged", chain => {
+        provider.on("networkChanged", chain => {
           try {
             expect(chain).to.eql(NETWORK_ID);
             resolve();
