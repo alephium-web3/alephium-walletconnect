@@ -334,7 +334,7 @@ export function isCompatibleChainGroup(expectedChainGroup: number, chainGroup: n
 
 export function parseChain(chainString: string): [number, number] {
   const [namespace, networkId, chainGroup] = chainString.replace(/\//g, ":").split(":");
-  return [Number(networkId), Number(chainGroup)];
+  return [parseInt(networkId, 10), parseInt(chainGroup, 10)];
 }
 
 export function formatAccount(permittedChain: string, account: Account): string {
