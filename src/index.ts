@@ -297,10 +297,7 @@ class WalletConnectProvider implements SignerProvider {
     if (typeof account1 === "undefined") {
       return false;
     } else {
-      return (
-        account0.map(a => formatAccount(this.permittedChain, a)).join() ===
-        account1.map(a => formatAccount(this.permittedChain, a)).join()
-      );
+      return account0.map(a => a.address).join() === account1.map(a => a.address).join();
     }
   }
 

@@ -17,9 +17,7 @@ import {
 
 import WalletConnectProvider, {
   isCompatibleChainGroup,
-  isCompatibleChain,
   parseChain,
-  parseAccount,
   formatChain,
   formatAccount,
   providerEvents,
