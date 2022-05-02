@@ -1,24 +1,13 @@
 import "mocha";
 import { expect } from "chai";
 
-import { SIGNER_EVENTS } from "@walletconnect/signer-connection";
-import { Client, CLIENT_EVENTS } from "@walletconnect/client";
-import { SessionTypes } from "@walletconnect/types";
-import {
-  formatJsonRpcError,
-  formatJsonRpcResult,
-  JsonRpcResponse,
-} from "@walletconnect/jsonrpc-utils";
-
-import WalletConnectProvider, { formatAccount } from "../src/index";
+import WalletConnectProvider from "../src/index";
 import { WalletClient } from "./shared";
 import {
   groupOfAddress,
   Account,
   CliqueClient,
-  NodeSigner,
   PrivateKeySigner,
-  convertHttpResponse,
   Contract,
   Script,
   verifyHexString,
@@ -96,13 +85,6 @@ const TEST_WALLET_CLIENT_OPTS = {
   relayUrl: TEST_RELAY_URL,
   metadata: TEST_WALLET_METADATA,
   submitTx: true,
-};
-
-const TEST_ETH_TRANSFER = {
-  from: ACCOUNTS.a.address,
-  to: ACCOUNTS.b.address,
-  value: BigInt(1000000000000000000),
-  data: "0x",
 };
 
 describe("WalletConnectProvider with single chainGroup", function() {

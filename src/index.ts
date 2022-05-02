@@ -1,7 +1,6 @@
 import { EventEmitter } from "eventemitter3";
 import { JsonRpcProvider } from "@walletconnect/jsonrpc-provider";
 import { RequestArguments } from "@walletconnect/jsonrpc-utils";
-import { HttpConnection } from "@walletconnect/jsonrpc-http-connection";
 import { SessionTypes } from "@walletconnect/types";
 import {
   SignerConnection,
@@ -336,16 +335,8 @@ export function isCompatibleChainGroup(expectedChainGroup: number, chainGroup: n
   return expectedChainGroup === -1 || expectedChainGroup === chainGroup;
 }
 
-export function upgradeChainGroup(permittedChainGroup: number, chainGroup: number): number {
-  if (permittedChainGroup === -1) {
-    return -1;
-  } else {
-    return chainGroup;
-  }
-}
-
 export function parseChain(chainString: string): [number, number] {
-  const [_ /* namespace */, networkId, chainGroup] = chainString.replace(/\//g, ":").split(":");
+  const [namespace, networkId, chainGroup] = chainString.replace(/\//g, ":").split(":");
   return [Number(networkId), Number(chainGroup)];
 }
 
