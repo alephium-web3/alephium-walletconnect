@@ -23,13 +23,13 @@ const RPC_URL = `http://127.0.0.1:${PORT}`;
 const cliqueClient = new CliqueClient({ baseUrl: RPC_URL });
 const signerA = new PrivateKeySigner(
   cliqueClient,
-  "0c493c4969b89003f964401752f29af896d0aa82d751d23abc1ee59bfe85f3ec",
+  "a642942e67258589cd2b1822c631506632db5a12aabcf413604e785300d762a5",
 );
 const signerB = PrivateKeySigner.createRandom(cliqueClient);
 const signerC = PrivateKeySigner.createRandom(cliqueClient);
 const ACCOUNTS = {
   a: {
-    address: "12LgGdbjE6EtnTKw5gdBwV2RRXuXPtzYM7SDZ45YJTRht",
+    address: "1DrDyTr9RpRsQnDnXo2YRiPzPW4ooHX5LLoqXrqfMrpQH",
     privateKey: signerA.privateKey,
     group: signerA.group,
   },
