@@ -1,13 +1,12 @@
 {
-  "name": "@alephium/walletconnect-provider",
+  "name": "alephium-walletconnect-provider",
   "description": "Alephium Provider for WalletConnect Protocol",
-  "version": "2.0.0-beta.26-2",
-  "author": "WalletConnect, Inc. <walletconnect.com>",
-  "homepage": "https://github.com/walletconnect/walletconnect-monorepo/",
+  "version": "0.0.1",
+  "author": "Alephium dev",
+  "homepage": "https://github.com/alephium-web3/alephium-walletconnect",
   "repository": {
     "type": "git",
-    "url": "https://github.com/walletconnect/walletconnect-monorepo",
-    "directory": "packages/ethereum-provider"
+    "url": "git@github.com:alephium-web3/alephium-walletconnect.git"
   },
   "license": "Apache-2.0",
   "main": "dist/cjs/index.js",
