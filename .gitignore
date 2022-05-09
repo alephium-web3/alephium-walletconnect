@@ -18,7 +18,7 @@ jspm_packages
 .eslintcache
 .node_repl_history
 *.tgz
-**/dist
+/dist
 **/build
 .DS_Store
 .makeFlags*
