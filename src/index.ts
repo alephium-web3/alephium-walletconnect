@@ -81,25 +81,10 @@ export const providerEvents = {
   },
 };
 
-export interface AlephiumRpcConfig {
-  custom?: {
-    [networkId: string]: string;
-  };
-}
-
-export function getRpcUrl(networkId: number, rpc?: AlephiumRpcConfig): string | undefined {
-  let rpcUrl: string | undefined;
-  if (rpc && rpc.custom) {
-    rpcUrl = rpc.custom[networkId];
-  }
-  return rpcUrl;
-}
-
 export interface WalletConnectProviderOptions {
   networkId: number;
   chainGroup: number;
   methods?: string[];
-  rpc?: AlephiumRpcConfig;
   client?: SignerConnectionClientOpts;
 }
 
@@ -144,7 +129,7 @@ class WalletConnectProvider implements SignerProvider {
         throw new Error(`Unknown signer address ${args.params.signerAddress}`);
       }
       return this.signer.request(args, {
-        chainId: formatChain(this.networkId, signerAccount.group),
+        chainId: formatChain(this.networkId, this.chainGroup),
       });
     }
     return Promise.reject(`Invalid method was passed ${args.method}`);
