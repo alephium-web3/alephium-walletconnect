@@ -13,10 +13,10 @@ import {
   GetAccountsResult,
   SignTransferTxParams,
   SignTransferTxResult,
-  SignContractCreationTxParams,
-  SignContractCreationTxResult,
-  SignScriptTxParams,
-  SignScriptTxResult,
+  SignDeployContractTxParams,
+  SignDeployContractTxResult,
+  SignExecuteScriptTxParams,
+  SignExecuteScriptTxResult,
   SignUnsignedTxParams,
   SignUnsignedTxResult,
   SignHexStringParams,
@@ -51,12 +51,12 @@ interface SignerMethodsTable extends Record<SignerMethods, { params: any; result
     result: SignTransferTxResult;
   };
   alph_signContractCreationTx: {
-    params: SignContractCreationTxParams;
-    result: SignContractCreationTxResult;
+    params: SignDeployContractTxParams;
+    result: SignDeployContractTxResult;
   };
   alph_signScriptTx: {
-    params: SignScriptTxParams;
-    result: SignScriptTxResult;
+    params: SignExecuteScriptTxParams;
+    result: SignExecuteScriptTxResult;
   };
   alph_signUnsignedTx: {
     params: SignUnsignedTxParams;
@@ -186,13 +186,13 @@ class WalletConnectProvider implements SignerProvider {
     return this.typedRequest("alph_signTransferTx", params);
   }
 
-  public async signContractCreationTx(
-    params: SignContractCreationTxParams,
-  ): Promise<SignContractCreationTxResult> {
+  public async signDeployContractTx(
+    params: SignDeployContractTxParams,
+  ): Promise<SignDeployContractTxResult> {
     return this.typedRequest("alph_signContractCreationTx", params);
   }
 
-  public async signScriptTx(params: SignScriptTxParams): Promise<SignScriptTxResult> {
+  public async signExecuteScriptTx(params: SignExecuteScriptTxParams): Promise<SignExecuteScriptTxResult> {
     return this.typedRequest("alph_signScriptTx", params);
   }
 
@@ -323,14 +323,14 @@ export function parseChain(chainString: string): [number, number] {
 }
 
 export function formatAccount(permittedChain: string, account: Account): string {
-  return `${permittedChain}:${account.address}+${account.pubkey}`;
+  return `${permittedChain}:${account.address}+${account.publicKey}`;
 }
 
 export function parseAccount(account: string): Account {
-  const [namespace, permittedChain, address, pubkey] = account.replace(/\+/g, ":").split(":");
+  const [namespace, permittedChain, address, publicKey] = account.replace(/\+/g, ":").split(":");
   return {
     address: address,
-    pubkey: pubkey,
+    publicKey: publicKey,
     group: groupOfAddress(address),
   };
 }

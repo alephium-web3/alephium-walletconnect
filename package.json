@@ -1,7 +1,7 @@
 {
   "name": "alephium-walletconnect-provider",
   "description": "Alephium Provider for WalletConnect Protocol",
-  "version": "0.0.4",
+  "version": "0.1.0",
   "author": "Alephium dev",
   "homepage": "https://github.com/alephium-web3/alephium-walletconnect",
   "repository": {
@@ -39,7 +39,7 @@
     "@walletconnect/signer-connection": "^2.0.0-beta.23",
     "@walletconnect/types": "^2.0.0-beta.23",
     "@walletconnect/utils": "^2.0.0-beta.23",
-    "alephium-web3": "0.5.0",
+    "alephium-web3": "0.8.0",
     "eventemitter3": "^4.0.7"
   },
   "devDependencies": {

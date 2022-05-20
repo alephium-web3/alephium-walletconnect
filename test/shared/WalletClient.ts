@@ -4,16 +4,16 @@ import { ERROR } from "@walletconnect/utils";
 import { SIGNER_EVENTS } from "@walletconnect/signer-connection";
 import { formatJsonRpcError, formatJsonRpcResult } from "@walletconnect/jsonrpc-utils";
 import {
-  CliqueClient,
-  PrivateKeySigner,
+  NodeProvider,
   SignTransferTxParams,
-  SignContractCreationTxParams,
-  SignScriptTxParams,
+  SignDeployContractTxParams,
+  SignExecuteScriptTxParams,
   SignUnsignedTxParams,
   SignHexStringParams,
   SignMessageParams,
   Account,
 } from "alephium-web3";
+import { PrivateKeyWallet } from "alephium-web3/test";
 
 import WalletConnectProvider, {
   isCompatibleChainGroup,
@@ -34,8 +34,8 @@ export type WalletClientAsyncOpts = WalletClientOpts & ClientOptions;
 
 export class WalletClient {
   public provider: WalletConnectProvider;
-  public cliqueClient: CliqueClient;
-  public signer: PrivateKeySigner;
+  public nodeProvider: NodeProvider;
+  public signer: PrivateKeyWallet;
   public networkId: number;
   public rpcUrl: string;
   public submitTx: boolean;
@@ -72,7 +72,7 @@ export class WalletClient {
   get account(): Account {
     return {
       address: this.signer.address,
-      pubkey: this.signer.publicKey,
+      publicKey: this.signer.publicKey,
       group: this.signer.group,
     };
   }
@@ -86,8 +86,8 @@ export class WalletClient {
     this.networkId = opts?.networkId || 4;
     this.rpcUrl = opts?.rpcUrl || "http://127.0.0.1:22973";
     this.submitTx = opts?.submitTx || false;
-    this.cliqueClient = new CliqueClient({ baseUrl: this.rpcUrl });
-    this.signer = this.getWallet(this.cliqueClient, opts.privateKey);
+    this.nodeProvider = new NodeProvider(this.rpcUrl);
+    this.signer = this.getWallet(this.nodeProvider, opts.privateKey);
   }
 
   public async changeAccount(privateKey: string) {
@@ -107,7 +107,7 @@ export class WalletClient {
   }
 
   private setAccount(privateKey: string) {
-    this.signer = this.getWallet(this.cliqueClient, privateKey);
+    this.signer = this.getWallet(this.nodeProvider, privateKey);
   }
 
   private setNetworkId(networkId: number, rpcUrl: string) {
@@ -136,11 +136,11 @@ export class WalletClient {
     await this.client.notify({ topic: this.topic, notification });
   }
 
-  private getWallet(cliqueClient: CliqueClient, privateKey?: string): PrivateKeySigner {
+  private getWallet(nodeProvider: NodeProvider, privateKey?: string): PrivateKeyWallet {
     const wallet =
       typeof privateKey !== "undefined"
-        ? new PrivateKeySigner(cliqueClient, privateKey)
-        : PrivateKeySigner.createRandom(cliqueClient);
+        ? new PrivateKeyWallet(nodeProvider, privateKey)
+        : PrivateKeyWallet.Random(nodeProvider);
     return wallet;
   }
 
@@ -259,13 +259,13 @@ export class WalletClient {
               );
               break;
             case "alph_signContractCreationTx":
-              result = await this.signer.signContractCreationTx(
-                (request.params as any) as SignContractCreationTxParams,
+              result = await this.signer.signDeployContractTx(
+                (request.params as any) as SignDeployContractTxParams,
               );
               break;
             case "alph_signScriptTx":
-              result = await this.signer.signScriptTx(
-                (request.params as any) as SignScriptTxParams,
+              result = await this.signer.signExecuteScriptTx(
+                (request.params as any) as SignExecuteScriptTxParams,
               );
               break;
             case "alph_signUnsignedTx":

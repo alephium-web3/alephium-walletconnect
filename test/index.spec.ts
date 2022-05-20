@@ -5,28 +5,28 @@ import WalletConnectProvider from "../src/index";
 import { WalletClient } from "./shared";
 import {
   groupOfAddress,
+  node,
   Account,
-  CliqueClient,
-  PrivateKeySigner,
+  NodeProvider,
   Contract,
   Script,
   verifyHexString,
   verifySignedMessage,
 } from "alephium-web3";
-import { Balance } from "alephium-web3/api/alephium";
+import { PrivateKeyWallet } from "alephium-web3/test";
 
 const NETWORK_ID = 4;
 const CHAIN_GROUP = 2;
 const PORT = 22973;
 const RPC_URL = `http://127.0.0.1:${PORT}`;
 
-const cliqueClient = new CliqueClient({ baseUrl: RPC_URL });
-const signerA = new PrivateKeySigner(
-  cliqueClient,
+const nodeProvider = new NodeProvider(RPC_URL);
+const signerA = new PrivateKeyWallet(
+  nodeProvider,
   "a642942e67258589cd2b1822c631506632db5a12aabcf413604e785300d762a5",
 );
-const signerB = PrivateKeySigner.createRandom(cliqueClient);
-const signerC = PrivateKeySigner.createRandom(cliqueClient);
+const signerB = PrivateKeyWallet.Random(nodeProvider);
+const signerC = PrivateKeyWallet.Random(nodeProvider);
 const ACCOUNTS = {
   a: {
     address: "1DrDyTr9RpRsQnDnXo2YRiPzPW4ooHX5LLoqXrqfMrpQH",
@@ -89,7 +89,6 @@ const TEST_WALLET_CLIENT_OPTS = {
 
 describe("WalletConnectProvider with single chainGroup", function() {
   this.timeout(30_000);
-  cliqueClient.init(false);
 
   let provider: WalletConnectProvider;
   let walletClient: WalletClient;
@@ -228,10 +227,10 @@ describe("WalletConnectProvider with single chainGroup", function() {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
 
-  let balance: Balance;
+  let balance: node.Balance;
   async function checkBalanceDecreasing() {
     delay(500);
-    const balance1 = await cliqueClient.getBalance(ACCOUNTS.a.address);
+    const balance1 = await nodeProvider.addresses.getAddressesAddressBalance(ACCOUNTS.a.address);
     expect(balance1.utxoNum).to.eql(1);
     if (balance1.balance >= balance.balance) {
       checkBalanceDecreasing();
@@ -244,7 +243,7 @@ describe("WalletConnectProvider with single chainGroup", function() {
     expect(!!accounts).to.be.true;
     expect(accounts[0].address).to.eql(ACCOUNTS.a.address);
 
-    balance = await cliqueClient.getBalance(ACCOUNTS.a.address);
+    balance = await nodeProvider.addresses.getAddressesAddressBalance(ACCOUNTS.a.address);
     expect(balance.utxoNum).to.eql(1);
 
     expect(walletClient.submitTx).to.be.true;
@@ -255,17 +254,21 @@ describe("WalletConnectProvider with single chainGroup", function() {
     });
     await checkBalanceDecreasing();
 
-    const greeter = await Contract.fromSource(cliqueClient, "greeter.ral");
+    const greeter = await Contract.fromSource(nodeProvider, "greeter.ral");
 
-    const greeterParams = await greeter.paramsForDeployment(signerA, { initialFields: [1] });
-    const greeterResult = await signerA.signContractCreationTx(greeterParams);
+    const greeterParams = await greeter.paramsForDeployment({
+      signerAddress: signerA.address,
+      initialFields: { btcPrice: 1 },
+    });
+    const greeterResult = await signerA.signDeployContractTx(greeterParams);
     await checkBalanceDecreasing();
 
-    const main = await Script.fromSource(cliqueClient, "greeter_main.ral");
-    const mainParams = await main.paramsForDeployment(signerA, {
-      templateVariables: { greeterContractId: greeterResult.contractId },
+    const main = await Script.fromSource(nodeProvider, "greeter_main.ral");
+    const mainParams = await main.paramsForDeployment({
+      signerAddress: signerA.address,
+      initialFields: { greeterContractId: greeterResult.contractId },
     });
-    const mainResult = await signerA.signScriptTx(mainParams);
+    const mainResult = await signerA.signExecuteScriptTx(mainParams);
     await checkBalanceDecreasing();
 
     const hexString = "48656c6c6f20416c65706869756d21";
@@ -286,7 +289,6 @@ describe("WalletConnectProvider with single chainGroup", function() {
 
 describe("WalletConnectProvider with arbitrary chainGroup", function() {
   this.timeout(30_000);
-  cliqueClient.init(false);
 
   let provider: WalletConnectProvider;
   let walletClient: WalletClient;
